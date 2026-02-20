@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+:root {
+  --nauta-navy: #1a2332;
+  --nauta-gold: #d4a843;
+  --nauta-blue: #2563eb;
+  --nauta-green: #10b981;
+  --nauta-red: #ef4444;
+  --nauta-orange: #f59e0b;
+  --nauta-gray: #6b7280;
+}
+
+body {
+  background: #0f1419;
+  color: #e5e7eb;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.glass-card {
+  background: rgba(26, 35, 50, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(212, 168, 67, 0.15);
+  border-radius: 12px;
+}
+
+.glass-card-hover:hover {
+  border-color: rgba(212, 168, 67, 0.4);
+  box-shadow: 0 0 20px rgba(212, 168, 67, 0.1);
+}
+
+.gold-gradient {
+  background: linear-gradient(135deg, #d4a843 0%, #f0d078 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.score-ring {
+  transition: stroke-dashoffset 1s ease-in-out;
+}
+
+.pulse-dot {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tab-active {
+  border-bottom: 2px solid var(--nauta-gold);
+  color: var(--nauta-gold);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-hot { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+.badge-warm { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.badge-cold { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+.badge-connected { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+.badge-new { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+
+.priority-high { border-left: 3px solid #ef4444; }
+.priority-medium { border-left: 3px solid #f59e0b; }
+.priority-low { border-left: 3px solid #3b82f6; }
+
+input[type="file"]::file-selector-button {
+  background: linear-gradient(135deg, #d4a843 0%, #f0d078 100%);
+  color: #1a2332;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 12px;
+}
+
+input[type="file"]::file-selector-button:hover {
+  opacity: 0.9;
+}
+
+textarea {
+  background: rgba(15, 20, 25, 0.6);
+  border: 1px solid rgba(212, 168, 67, 0.2);
+  border-radius: 8px;
+  color: #e5e7eb;
+  padding: 12px;
+  width: 100%;
+  resize: vertical;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: rgba(212, 168, 67, 0.5);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 20, 25, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 168, 67, 0.3);
+  border-radius: 3px;
+}
