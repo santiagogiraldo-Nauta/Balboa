@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, MessageSquare, ChevronDown, Zap } from "lucide-react";
+import { Send, MessageSquare, ChevronDown, Zap } from "lucide-react";
 import type { Lead, Deal, Account, SupportedLanguage } from "@/lib/types";
 import { buildAssistantContext } from "@/lib/assistant-context";
 import { trackEventClient } from "@/lib/tracking";
@@ -25,13 +25,51 @@ interface BalboaAssistantProps {
 }
 
 const SUGGESTED_PROMPTS = [
-  { icon: "\uD83C\uDFAF", text: "Who should I prioritize today?", category: "action" },
-  { icon: "\uD83D\uDCCA", text: "How is my pipeline looking?", category: "analysis" },
-  { icon: "\uD83D\uDD25", text: "Which deals are at risk?", category: "deals" },
-  { icon: "\u2709\uFE0F", text: "Draft an outreach for my hottest lead", category: "outreach" },
-  { icon: "\uD83D\uDCA1", text: "What's working best in my outreach?", category: "playbook" },
-  { icon: "\uD83D\uDCCB", text: "Give me my action plan for this week", category: "action" },
+  { icon: "🧭", text: "Who should I prioritize today?", category: "action" },
+  { icon: "📊", text: "How is my pipeline looking?", category: "analysis" },
+  { icon: "🔥", text: "Which deals are at risk?", category: "deals" },
+  { icon: "✉️", text: "Draft an outreach for my hottest lead", category: "outreach" },
+  { icon: "⚡", text: "What's working best in my outreach?", category: "playbook" },
+  { icon: "🗺️", text: "Give me my action plan for this week", category: "action" },
 ];
+
+// Vasco compass rose logo — inspired by Vasco Núñez de Balboa, the explorer
+function VascoLogo({ size = 24, className }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+      className={className}
+      style={{ flexShrink: 0 }}
+    >
+      {/* Outer ring */}
+      <circle cx="16" cy="16" r="14.5" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
+      {/* Inner ring */}
+      <circle cx="16" cy="16" r="11" stroke="currentColor" strokeWidth="1" opacity="0.2" />
+      {/* North pointer (main — gold/bright) */}
+      <path d="M16 3L18.5 13H13.5L16 3Z" fill="currentColor" opacity="0.95" />
+      {/* South pointer */}
+      <path d="M16 29L13.5 19H18.5L16 29Z" fill="currentColor" opacity="0.4" />
+      {/* East pointer */}
+      <path d="M29 16L19 13.5V18.5L29 16Z" fill="currentColor" opacity="0.4" />
+      {/* West pointer */}
+      <path d="M3 16L13 18.5V13.5L3 16Z" fill="currentColor" opacity="0.4" />
+      {/* NE diagonal */}
+      <path d="M25.2 6.8L19.5 14L18 12.5L25.2 6.8Z" fill="currentColor" opacity="0.25" />
+      {/* NW diagonal */}
+      <path d="M6.8 6.8L14 12.5L12.5 14L6.8 6.8Z" fill="currentColor" opacity="0.25" />
+      {/* SE diagonal */}
+      <path d="M25.2 25.2L18 19.5L19.5 18L25.2 25.2Z" fill="currentColor" opacity="0.25" />
+      {/* SW diagonal */}
+      <path d="M6.8 25.2L12.5 18L14 19.5L6.8 25.2Z" fill="currentColor" opacity="0.25" />
+      {/* Center dot */}
+      <circle cx="16" cy="16" r="2.5" fill="currentColor" opacity="0.9" />
+      <circle cx="16" cy="16" r="1.2" fill="currentColor" />
+    </svg>
+  );
+}
 
 // Inline Eye SVG component (avoids unused lucide import)
 function EyeIcon({ style }: { style?: React.CSSProperties }) {
@@ -247,41 +285,42 @@ export default function BalboaAssistant({
 
   return (
     <>
-      {/* Floating button */}
+      {/* Vasco floating button */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
+          title="Ask Vasco"
           style={{
             position: "fixed",
             bottom: 24,
             right: 24,
             zIndex: 1000,
-            width: 56,
-            height: 56,
+            width: 58,
+            height: 58,
             borderRadius: "50%",
-            background: "linear-gradient(135deg, #1e2a5e 0%, #3b5bdb 100%)",
+            background: "linear-gradient(135deg, #0f1a3e 0%, #1e2a5e 40%, #3b5bdb 100%)",
             color: "white",
-            border: "none",
+            border: "2px solid rgba(255,255,255,0.12)",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             boxShadow:
-              "0 4px 20px rgba(30,42,94,0.35), 0 0 0 3px rgba(59,91,219,0.15)",
-            transition: "all 0.2s ease",
+              "0 4px 24px rgba(15,26,62,0.45), 0 0 0 3px rgba(59,91,219,0.12), inset 0 1px 0 rgba(255,255,255,0.1)",
+            transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "scale(1.08)";
+            e.currentTarget.style.transform = "scale(1.1) rotate(15deg)";
             e.currentTarget.style.boxShadow =
-              "0 6px 24px rgba(30,42,94,0.45), 0 0 0 4px rgba(59,91,219,0.2)";
+              "0 8px 32px rgba(15,26,62,0.5), 0 0 0 4px rgba(59,91,219,0.2), inset 0 1px 0 rgba(255,255,255,0.15)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "scale(1)";
+            e.currentTarget.style.transform = "scale(1) rotate(0deg)";
             e.currentTarget.style.boxShadow =
-              "0 4px 20px rgba(30,42,94,0.35), 0 0 0 3px rgba(59,91,219,0.15)";
+              "0 4px 24px rgba(15,26,62,0.45), 0 0 0 3px rgba(59,91,219,0.12), inset 0 1px 0 rgba(255,255,255,0.1)";
           }}
         >
-          <Sparkles style={{ width: 24, height: 24 }} />
+          <VascoLogo size={28} />
         </button>
       )}
 
@@ -308,30 +347,53 @@ export default function BalboaAssistant({
           {/* Header */}
           <div
             style={{
-              padding: "16px 20px",
-              borderBottom: "1px solid #f1f3f5",
+              padding: "14px 20px",
+              borderBottom: "1px solid rgba(255,255,255,0.08)",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              background: "linear-gradient(135deg, #1e2a5e 0%, #3b5bdb 100%)",
+              background: "linear-gradient(135deg, #0f1a3e 0%, #1e2a5e 40%, #3b5bdb 100%)",
               borderRadius: "16px 16px 0 0",
               color: "white",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Sparkles style={{ width: 18, height: 18 }} />
+              <div style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                background: "rgba(255,255,255,0.12)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}>
+                <VascoLogo size={20} />
+              </div>
               <div>
                 <div
                   style={{
                     fontWeight: 700,
                     fontSize: 14,
-                    letterSpacing: "-0.02em",
+                    letterSpacing: "-0.01em",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
                   }}
                 >
-                  Balboa AI
+                  Vasco
+                  <span style={{
+                    fontSize: 9,
+                    fontWeight: 600,
+                    padding: "1px 5px",
+                    borderRadius: 4,
+                    background: "rgba(255,255,255,0.15)",
+                    letterSpacing: "0.03em",
+                    textTransform: "uppercase",
+                  }}>AI</span>
                 </div>
-                <div style={{ fontSize: 11, opacity: 0.7 }}>
-                  Your sales intelligence assistant
+                <div style={{ fontSize: 11, opacity: 0.6, letterSpacing: "-0.01em" }}>
+                  Your sales navigator
                 </div>
               </div>
             </div>
@@ -379,8 +441,19 @@ export default function BalboaAssistant({
           >
             {messages.length === 0 && !isThinking && (
               <div style={{ textAlign: "center", padding: "24px 0" }}>
-                <div style={{ fontSize: 36, marginBottom: 8 }}>
-                  {"\uD83E\uDD16"}
+                <div style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 14,
+                  background: "linear-gradient(135deg, #0f1a3e 0%, #1e2a5e 40%, #3b5bdb 100%)",
+                  color: "white",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 12px",
+                  boxShadow: "0 4px 16px rgba(15,26,62,0.25)",
+                }}>
+                  <VascoLogo size={30} />
                 </div>
                 <h3
                   style={{
@@ -390,7 +463,7 @@ export default function BalboaAssistant({
                     marginBottom: 4,
                   }}
                 >
-                  How can I help?
+                  Ask Vasco
                 </h3>
                 <p
                   style={{
@@ -400,7 +473,7 @@ export default function BalboaAssistant({
                     lineHeight: 1.5,
                   }}
                 >
-                  I know everything about your pipeline. Ask me anything.
+                  I know your pipeline inside out. Ask me anything — leads, deals, strategy.
                 </p>
                 <div
                   style={{
@@ -545,7 +618,7 @@ export default function BalboaAssistant({
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask anything about your pipeline..."
+                placeholder="Ask Vasco anything..."
                 disabled={isThinking}
                 style={{
                   flex: 1,
