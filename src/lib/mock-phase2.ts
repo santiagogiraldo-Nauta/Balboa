@@ -214,10 +214,10 @@ export const mockAccounts = [
 ];
 
 export const mockAccountExecutives = [
-  { id: "ae-1", name: "Santiago Giraldo", email: "santiago@getnauta.com", role: "Founder", metrics_close_rate: 45, metrics_reply_rate: 62, metrics_meeting_rate: 48, metrics_avg_deal_size: 185000, metrics_pipeline_value: 1200000, metrics_playbook_adherence: 95 },
-  { id: "ae-2", name: "Anthony Yarussi", email: "anthony@getnauta.com", role: "AE", metrics_close_rate: 52, metrics_reply_rate: 65, metrics_meeting_rate: 56, metrics_avg_deal_size: 320000, metrics_pipeline_value: 1586000, metrics_playbook_adherence: 98 },
-  { id: "ae-3", name: "Manuel Lopez", email: "manuel@getnauta.com", role: "BDR", metrics_close_rate: 38, metrics_reply_rate: 48, metrics_meeting_rate: 42, metrics_avg_deal_size: 0, metrics_pipeline_value: 0, metrics_playbook_adherence: 82 },
-  { id: "ae-4", name: "Rafael Santiago", email: "rafael@getnauta.com", role: "BDR", metrics_close_rate: 35, metrics_reply_rate: 55, metrics_meeting_rate: 40, metrics_avg_deal_size: 0, metrics_pipeline_value: 0, metrics_playbook_adherence: 88 },
+  { id: "ae-1", name: "Santiago Giraldo", email: "santiago@getbalboa.com", role: "Founder", metrics_close_rate: 45, metrics_reply_rate: 62, metrics_meeting_rate: 48, metrics_avg_deal_size: 185000, metrics_pipeline_value: 1200000, metrics_playbook_adherence: 95 },
+  { id: "ae-2", name: "Anthony Yarussi", email: "anthony@getbalboa.com", role: "AE", metrics_close_rate: 52, metrics_reply_rate: 65, metrics_meeting_rate: 56, metrics_avg_deal_size: 320000, metrics_pipeline_value: 1586000, metrics_playbook_adherence: 98 },
+  { id: "ae-3", name: "Manuel Lopez", email: "manuel@getbalboa.com", role: "BDR", metrics_close_rate: 38, metrics_reply_rate: 48, metrics_meeting_rate: 42, metrics_avg_deal_size: 0, metrics_pipeline_value: 0, metrics_playbook_adherence: 82 },
+  { id: "ae-4", name: "Rafael Santiago", email: "rafael@getbalboa.com", role: "BDR", metrics_close_rate: 35, metrics_reply_rate: 55, metrics_meeting_rate: 40, metrics_avg_deal_size: 0, metrics_pipeline_value: 0, metrics_playbook_adherence: 88 },
 ];
 
 export const mockPlaybookMetrics = [

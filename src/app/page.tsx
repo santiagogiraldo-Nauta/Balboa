@@ -33,6 +33,11 @@ import UnifiedOutreach from "@/components/UnifiedOutreach";
 import DealPipeline from "@/components/DealPipeline";
 import AnalyzerPanel from "@/components/AnalyzerPanel";
 import MeetingSchedulerModal from "@/components/MeetingSchedulerModal";
+import OutreachApprovalQueue from "@/components/OutreachApprovalQueue";
+import LinkedInFilterSettings from "@/components/LinkedInFilterSettings";
+import LinkedInConversationList from "@/components/LinkedInConversationList";
+import LinkedInAuditLog from "@/components/LinkedInAuditLog";
+import { getClientConfig } from "@/lib/config-client";
 import { mockDeals, mockAccounts } from "@/lib/mock-phase2";
 
 export default function Dashboard() {
@@ -68,11 +73,21 @@ export default function Dashboard() {
   const [analyzingLead, setAnalyzingLead] = useState(false);
   const [deals] = useState(mockDeals);
   const [accounts] = useState(mockAccounts);
+  const [showLinkedInAuditLog, setShowLinkedInAuditLog] = useState(false);
 
   const supabase = createClient();
+  const { isSandbox } = getClientConfig();
 
   // Load user + leads from Supabase on mount (with timeout guard)
   useEffect(() => {
+    // Sandbox mode: skip Supabase, use mock data immediately
+    if (isSandbox) {
+      console.log("[Balboa] Sandbox mode — loading mock data");
+      setDbReady(true);
+      setInitialLoading(false);
+      return;
+    }
+
     let didTimeout = false;
     const timeout = setTimeout(() => {
       didTimeout = true;
@@ -305,7 +320,7 @@ export default function Dashboard() {
       weaknesses: ["Slow implementation timelines", "Limited mid-market focus"],
       balboaDifferentiators: ["6-8 week deployment vs 6+ months", "Purpose-built for mid-market distributors", "Autonomous action on alerts, not just visibility"],
       killerQuestions: ["How long did implementation take, and what % of features are you using?", "When an alert fires, how quickly does someone act on it?"],
-      landmines: ["Avoid direct attacks on existing investment — position Nauta as complementary"],
+      landmines: ["Avoid direct attacks on existing investment — position Balboa as complementary"],
       autoDetectedFrom: "companyIntel.techStack",
       createdAt: new Date().toISOString(),
     };
@@ -811,6 +826,8 @@ export default function Dashboard() {
     playbook: { title: "Playbook Intelligence", subtitle: "Auto-detected patterns from messaging, calls, demos, and timing" },
     outreach: { title: "Unified Outreach", subtitle: "Email and LinkedIn replies in one place with channel recommendations" },
     deals: { title: "Deal Pipeline", subtitle: "Track and manage your deals with AI-powered strategy recommendations" },
+    queue: { title: "Outreach Queue", subtitle: "Review and approve outreach messages before they are sent" },
+    "linkedin-privacy": { title: "LinkedIn Privacy", subtitle: "Filter personal conversations from business workflows" },
   };
 
   // Show loading spinner while checking auth
@@ -892,6 +909,20 @@ export default function Dashboard() {
             className={`sidebar-item ${sidebarSection === "deals" ? "active" : ""}`}>
             <Target className="w-5 h-5" />
             <span className="tooltip">Deals</span>
+          </button>
+
+          {/* Outreach Queue (Phase 3) */}
+          <button onClick={() => navigateTo("queue")}
+            className={`sidebar-item ${sidebarSection === "queue" ? "active" : ""}`}>
+            <FileText className="w-5 h-5" />
+            <span className="tooltip">Queue</span>
+          </button>
+
+          {/* LinkedIn Privacy (Phase 3) */}
+          <button onClick={() => { navigateTo("linkedin-privacy"); setShowLinkedInAuditLog(false); }}
+            className={`sidebar-item ${sidebarSection === "linkedin-privacy" ? "active" : ""}`}>
+            <Shield className="w-5 h-5" />
+            <span className="tooltip">Privacy</span>
           </button>
         </nav>
       </div>
@@ -1843,6 +1874,34 @@ export default function Dashboard() {
         {sidebarSection === "deals" && (
           <div className="p-6">
             <DealPipeline deals={deals} leads={leads} onNavigateToLead={handleNavigateToLead} />
+          </div>
+        )}
+
+        {/* === OUTREACH QUEUE SECTION (Phase 3) === */}
+        {sidebarSection === "queue" && (
+          <div className="p-6">
+            <OutreachApprovalQueue visible={sidebarSection === "queue"} />
+          </div>
+        )}
+
+        {/* === LINKEDIN PRIVACY SECTION (Phase 3) === */}
+        {sidebarSection === "linkedin-privacy" && (
+          <div className="p-6">
+            {showLinkedInAuditLog ? (
+              <LinkedInAuditLog
+                visible={true}
+                onBack={() => setShowLinkedInAuditLog(false)}
+              />
+            ) : (
+              <>
+                <LinkedInFilterSettings
+                  visible={true}
+                  onShowAuditLog={() => setShowLinkedInAuditLog(true)}
+                />
+                <div style={{ height: 1, background: "rgba(148,163,184,0.1)", margin: "16px 0" }} />
+                <LinkedInConversationList visible={true} />
+              </>
+            )}
           </div>
         )}
 

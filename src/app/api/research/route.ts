@@ -16,10 +16,10 @@ export async function POST(req: NextRequest) {
     let prompt = BALBOA_ICP_CONTEXT + "\n\n";
 
     if (type === "company_research") {
-      prompt += `Research this company as a potential Nauta prospect. Based on what you know, provide:
+      prompt += `Research this company as a potential Balboa prospect. Based on what you know, provide:
 1. Company overview and likely size
 2. Likely tech stack based on industry/size
-3. Potential pain points Nauta solves
+3. Potential pain points Balboa solves
 4. Key personas to target
 5. Recommended approach
 6. Conversation starters
@@ -41,18 +41,18 @@ Return JSON:
   "reasoning": "<why they are/aren't a fit>"
 }`;
     } else if (type === "industry_trends") {
-      prompt += `Identify current industry trends and opportunities for Nauta in: ${query}
+      prompt += `Identify current industry trends and opportunities for Balboa in: ${query}
 
 Return JSON:
 {
-  "trends": [{"trend": "<name>", "relevance": "<how it connects to Nauta>", "talkingPoint": "<what to say>"}],
+  "trends": [{"trend": "<name>", "relevance": "<how it connects to Balboa>", "talkingPoint": "<what to say>"}],
   "eventOpportunities": [<industry events worth attending>],
   "contentIdeas": [<topics to post about>]
 }`;
     } else {
-      prompt += `Answer this sales intelligence question for the Nauta team: ${query}
+      prompt += `Answer this sales intelligence question for the Balboa team: ${query}
 
-Provide actionable insights, not generic advice. Be specific to Nauta's product and ICP.`;
+Provide actionable insights, not generic advice. Be specific to Balboa's product and ICP.`;
     }
 
     prompt += "\n\nReturn ONLY valid JSON, no markdown formatting.";

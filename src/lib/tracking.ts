@@ -33,6 +33,7 @@ export type LeadAction =
 export type OutreachAction =
   | "message_generated"
   | "message_sent"
+  | "message_queued"
   | "message_copied"
   | "draft_created"
   | "draft_approved"

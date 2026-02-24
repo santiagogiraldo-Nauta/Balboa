@@ -217,7 +217,7 @@ function generateMockKit(lead: Lead, type: PrepKitType): { title: string; sectio
         { title: "Agenda (30 min)", items: [`5 min — ${company} context recap + confirm priorities`, "10 min — Live dashboard: real-time tracking + alerts", `8 min — ${pain} workflow demo`, "5 min — ROI discussion", "2 min — Next steps"] },
         { title: "Key Talking Points", items: [`${company} operates in ${industry} — show relevant use cases`, `Their top pain: ${pain}`, "Show 92 in-transit shipments tracked in real-time", "Reference OTIF improvement (22% → 90%+)", "Anchor ROI to their specific scale"] },
         { title: "Demo Flow", items: ["Start with Real-Time Tracking dashboard", "Show delayed shipment alerts (801 flagged)", "Navigate to Order Management", "Show Inventory Health with safety stock", "End with Tariff module if relevant"] },
-        { title: "Objection Handling", items: ["'We have an ERP' → Nauta augments, doesn't replace", "'Too expensive' → ROI pays for itself in 90 days", "'Long implementation' → 6-8 week deployment", "'Need IT approval' → Schedule technical validation call"] },
+        { title: "Objection Handling", items: ["'We have an ERP' → Balboa augments, doesn't replace", "'Too expensive' → ROI pays for itself in 90 days", "'Long implementation' → 6-8 week deployment", "'Need IT approval' → Schedule technical validation call"] },
       ],
     },
     discovery: {
@@ -239,7 +239,7 @@ function generateMockKit(lead: Lead, type: PrepKitType): { title: string; sectio
     proposal: {
       title: `Proposal Prep: ${company}`,
       sections: [
-        { title: "Executive Summary", items: [`${company} needs a unified supply chain control tower`, `Key pain: ${pain}`, "Nauta provides real-time visibility + autonomous action", "Expected ROI: 90-day payback"] },
+        { title: "Executive Summary", items: [`${company} needs a unified supply chain control tower`, `Key pain: ${pain}`, "Balboa provides real-time visibility + autonomous action", "Expected ROI: 90-day payback"] },
         { title: "Solution Mapping", items: ["Real-Time Tracking → Solves visibility gaps", "Automated PO Management → Eliminates manual work", "Inventory Optimization → Reduces safety stock 18%", "Tariff Monitoring → Compliance + cost avoidance"] },
         { title: "ROI Calculation", items: ["Fill rate improvement: 0.25% = significant revenue recovery", "Safety stock reduction: 18% = freed working capital", "Emergency PO reduction: 92%", "DIO improvement: 10-15 days"] },
       ],

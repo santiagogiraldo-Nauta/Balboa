@@ -303,7 +303,7 @@ export interface DashboardStats {
   weeklyEngagement: number;
 }
 
-export type SidebarSection = "today" | "leads" | "followups" | "prospecting" | "playbook" | "outreach" | "deals";
+export type SidebarSection = "today" | "leads" | "followups" | "prospecting" | "playbook" | "outreach" | "deals" | "queue" | "linkedin-privacy";
 
 // === LINKEDIN OUTREACH TRACKER ===
 export type LinkedInOutreachStage =

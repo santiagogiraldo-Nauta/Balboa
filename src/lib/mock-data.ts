@@ -37,7 +37,7 @@ export const MOCK_LEADS: Lead[] = [
     touchpointTimeline: [
       { id: "tp-1a", channel: "linkedin", type: "connection_request_sent", description: "Connection request sent with personalized note about MODEX", date: relDate(-35) },
       { id: "tp-1b", channel: "linkedin", type: "connection_accepted", description: "Connection request accepted", date: relDate(-33) },
-      { id: "tp-1c", channel: "linkedin", type: "message_sent", description: "LinkedIn message: Intro about Nauta's supply chain visibility platform", date: relDate(-20) },
+      { id: "tp-1c", channel: "linkedin", type: "message_sent", description: "LinkedIn message: Intro about Balboa's supply chain visibility platform", date: relDate(-20) },
       { id: "tp-1d", channel: "linkedin", type: "message_replied", description: "Replied: 'Interesting, we're actually looking at options for our Southeast DCs'", date: relDate(-19) },
       { id: "tp-1e", channel: "email", type: "email_sent", description: "Added to Demurrage Pain Point Campaign (Step 1)", date: relDate(-8) },
       { id: "tp-1f", channel: "email", type: "email_opened", description: "Opened demurrage email (2x)", date: relDate(-7) },
@@ -53,7 +53,7 @@ export const MOCK_LEADS: Lead[] = [
         notes: "Great intro call. Sarah is very interested in D&D reduction for Southeast DCs. She asked for a case study of a food distributor and a Loom video walkthrough of the dashboard.",
         outcomes: [
           { type: "send_case_study", description: "Send food distributor case study (US Foods-specific)", completed: false },
-          { type: "send_loom", description: "Record Loom walkthrough of Nauta dashboard for D&D tracking", completed: false },
+          { type: "send_loom", description: "Record Loom walkthrough of Balboa dashboard for D&D tracking", completed: false },
           { type: "schedule_followup", description: "Schedule follow-up call next week", dueDate: relDate(5), completed: false },
         ],
         generatedDrafts: ["draft-call-1a", "draft-call-1b"],
@@ -178,9 +178,9 @@ export const MOCK_LEADS: Lead[] = [
       {
         id: "call-4", leadId: "lead-4", callLink: "https://app.amplemarket.com/calls/xyz789", platform: "amplemarket",
         date: relDate(0), duration: "30 min",
-        notes: "David is very engaged. Tariff impact is massive for Costco's import categories. Asked me to send the full deck on Nauta's import visibility and a detailed email with tariff rerouting scenarios.",
+        notes: "David is very engaged. Tariff impact is massive for Costco's import categories. Asked me to send the full deck on Balboa's import visibility and a detailed email with tariff rerouting scenarios.",
         outcomes: [
-          { type: "send_deck", description: "Send Nauta import visibility deck (Costco-customized)", completed: false },
+          { type: "send_deck", description: "Send Balboa import visibility deck (Costco-customized)", completed: false },
           { type: "send_email", description: "Email with tariff rerouting scenario analysis for top 5 import categories", completed: false },
           { type: "schedule_followup", description: "Schedule demo for his wider team", dueDate: relDate(7), completed: false },
         ],
@@ -256,7 +256,7 @@ export const MOCK_LEADS: Lead[] = [
       { id: "tp-6a", channel: "linkedin", type: "connection_request_sent", description: "Connection request sent", date: relDate(-90) },
       { id: "tp-6b", channel: "linkedin", type: "connection_accepted", description: "Connection accepted", date: relDate(-88) },
       { id: "tp-6c", channel: "linkedin", type: "post_comment", description: "Commented on his post about supply chain resilience", date: relDate(-45) },
-      { id: "tp-6d", channel: "linkedin", type: "message_sent", description: "LinkedIn DM: Nauta intro + food distribution focus", date: relDate(-30) },
+      { id: "tp-6d", channel: "linkedin", type: "message_sent", description: "LinkedIn DM: Balboa intro + food distribution focus", date: relDate(-30) },
       { id: "tp-6e", channel: "linkedin", type: "message_replied", description: "Replied: 'We're evaluating solutions. Send me more info.'", date: relDate(-28) },
       { id: "tp-6f", channel: "email", type: "email_sent", description: "Q1 Visibility campaign", date: relDate(-20) },
       { id: "tp-6g", channel: "email", type: "email_clicked", description: "Clicked food distributor case study (3x)", date: relDate(-18) },
@@ -810,7 +810,7 @@ export const MOCK_PROSPECTS: Prospect[] = [
       { type: "company_growth", description: "Hiring 3 logistics analysts and a supply chain manager — scaling rapidly", strength: "strong", date: "2026-02-16", source: "LinkedIn Jobs" },
       { type: "pain_indicator", description: "Glassdoor reviews mention 'outdated logistics systems' and 'too much manual tracking'", strength: "moderate", date: "2026-02-10", source: "Glassdoor" },
     ],
-    suggestedApproach: "Reference their hiring surge. Position Nauta as a way to scale without adding headcount.",
+    suggestedApproach: "Reference their hiring surge. Position Balboa as a way to scale without adding headcount.",
   },
   {
     id: "pros-3", firstName: "Lisa", lastName: "Chang", company: "Chobani",
@@ -859,11 +859,11 @@ export const MOCK_EVENTS: EventOpportunity[] = [
 
 export const MOCK_SIGNALS: MarketSignal[] = [
   { id: "sig-1", type: "pain_indicator", company: "Sysco", description: "Sysco reported Q4 earnings miss, citing 'supply chain inefficiencies and higher-than-expected logistics costs'", relevance: "high", date: "2026-02-18", source: "Earnings call transcript", suggestedAction: "Perfect timing for outreach. Reference their public statements about logistics costs." },
-  { id: "sig-2", type: "expansion", company: "US Foods", description: "US Foods opening 3 new distribution centers in Southeast US. Will need scalable supply chain visibility.", relevance: "high", date: "2026-02-15", source: "Press release", suggestedAction: "Expansion = more complexity. Position Nauta as the visibility layer that scales with them." },
-  { id: "sig-3", type: "tech_change", company: "McKesson", description: "McKesson migrating to Oracle Fusion Cloud ERP. Integration window is now open.", relevance: "high", date: "2026-02-12", source: "Job postings + Oracle announcement", suggestedAction: "ERP migration is the ideal time to add a control tower. Nauta integrates natively with Oracle Fusion." },
-  { id: "sig-4", type: "hiring", company: "Pernod Ricard USA", description: "Hiring 'Supply Chain Automation Lead' — signals investment in supply chain tech.", relevance: "medium", date: "2026-02-10", source: "LinkedIn Jobs", suggestedAction: "They're building an automation function. Nauta could replace the need for custom tooling." },
+  { id: "sig-2", type: "expansion", company: "US Foods", description: "US Foods opening 3 new distribution centers in Southeast US. Will need scalable supply chain visibility.", relevance: "high", date: "2026-02-15", source: "Press release", suggestedAction: "Expansion = more complexity. Position Balboa as the visibility layer that scales with them." },
+  { id: "sig-3", type: "tech_change", company: "McKesson", description: "McKesson migrating to Oracle Fusion Cloud ERP. Integration window is now open.", relevance: "high", date: "2026-02-12", source: "Job postings + Oracle announcement", suggestedAction: "ERP migration is the ideal time to add a control tower. Balboa integrates natively with Oracle Fusion." },
+  { id: "sig-4", type: "hiring", company: "Pernod Ricard USA", description: "Hiring 'Supply Chain Automation Lead' — signals investment in supply chain tech.", relevance: "medium", date: "2026-02-10", source: "LinkedIn Jobs", suggestedAction: "They're building an automation function. Balboa could replace the need for custom tooling." },
   { id: "sig-5", type: "leadership_change", company: "Cardinal Health", description: "New VP of Supply Chain hired from Amazon — will likely push for modern tooling.", relevance: "high", date: "2026-02-08", source: "LinkedIn", suggestedAction: "New leaders bring new initiatives. Reach out within 90 days of their start date." },
-  { id: "sig-6", type: "funding", company: "Lineage Logistics", description: "Closed $4.2B funding round. IPO expected 2026. Technology modernization is a priority.", relevance: "medium", date: "2026-01-15", source: "Crunchbase / TechCrunch", suggestedAction: "Pre-IPO companies invest heavily in operational efficiency. Nauta's ROI story is compelling here." },
+  { id: "sig-6", type: "funding", company: "Lineage Logistics", description: "Closed $4.2B funding round. IPO expected 2026. Technology modernization is a priority.", relevance: "medium", date: "2026-01-15", source: "Crunchbase / TechCrunch", suggestedAction: "Pre-IPO companies invest heavily in operational efficiency. Balboa's ROI story is compelling here." },
 ];
 
 // === CALL OUTCOME TEMPLATES (used by LogCallModal to auto-generate drafts) ===
@@ -873,11 +873,11 @@ export const CALL_OUTCOME_TEMPLATES: Record<CallOutcome["type"], { subject: stri
     body: "Hi {firstName},\n\nGreat speaking with you today. As discussed, here's a summary of the key points we covered and the next steps.\n\nLooking forward to continuing the conversation.\n\nBest,\nSantiago",
   },
   send_deck: {
-    subject: "Nauta Deck — Customized for {company}",
-    body: "Hi {firstName},\n\nAs promised on our call, attached is the Nauta deck customized for {company}'s {industry} operations.\n\nKey highlights:\n• Real-time PO-to-delivery visibility\n• Predictive D&D prevention\n• ROI calculator based on your container volume\n\nLet me know if you'd like to walk through any section in detail.\n\nBest,\nSantiago",
+    subject: "Balboa Deck — Customized for {company}",
+    body: "Hi {firstName},\n\nAs promised on our call, attached is the Balboa deck customized for {company}'s {industry} operations.\n\nKey highlights:\n• Real-time PO-to-delivery visibility\n• Predictive D&D prevention\n• ROI calculator based on your container volume\n\nLet me know if you'd like to walk through any section in detail.\n\nBest,\nSantiago",
   },
   send_loom: {
-    subject: "Loom walkthrough — Nauta for {company}",
+    subject: "Loom walkthrough — Balboa for {company}",
     body: "Hi {firstName},\n\nHere's the Loom walkthrough I mentioned on our call: [LOOM_LINK]\n\nIt covers:\n• Dashboard overview and key metrics\n• How real-time tracking works for your {industry} shipments\n• D&D prevention alerts in action\n\nTakes about 5 minutes — let me know what you think!\n\nBest,\nSantiago",
   },
   send_case_study: {
@@ -885,7 +885,7 @@ export const CALL_OUTCOME_TEMPLATES: Record<CallOutcome["type"], { subject: stri
     body: "Hi {firstName},\n\nFollowing up on our conversation, here's the case study I mentioned about a {industry} distributor that achieved:\n• 52% reduction in D&D costs\n• 3x improvement in container visibility\n• 18% fewer stockouts\n\nThe parallels with {company}'s situation are striking. Let me know if you'd like to discuss.\n\nBest,\nSantiago",
   },
   schedule_followup: {
-    subject: "Next steps — {company} + Nauta",
+    subject: "Next steps — {company} + Balboa",
     body: "Hi {firstName},\n\nThanks for the great conversation today. As discussed, I'd love to set up a follow-up to dive deeper.\n\nWould any of these times work for you?\n• [TIME_SLOT_1]\n• [TIME_SLOT_2]\n• [TIME_SLOT_3]\n\nLooking forward to it.\n\nBest,\nSantiago",
   },
   custom: {
@@ -899,11 +899,11 @@ export const MOCK_VIDEO_PREPS: VideoPrep[] = [
   {
     id: "vp-1", leadId: "lead-6", options: ["script", "slides"],
     language: "english",
-    script: `[SLIDE 1 - OPENER]\nHi Robert, thanks for taking a few minutes to watch this. I put this together specifically for Sysco because I know managing 500+ distribution centers with on-time delivery expectations from your restaurant clients is no small feat.\n\n[SLIDE 2 - THE PAIN]\nHere's what we're seeing across food distributors your size: detention and demurrage costs averaging $1,200 per container, OTIF rates stuck below 85%, and safety stock levels 20-30% higher than they need to be — all because systems don't talk to each other in real-time.\n\nAt Nauta, we track 92 in-transit shipments in real-time right now, and our platform flagged 801 delayed shipments this week alone — before they became customer-facing problems.\n\n[SLIDE 3 - HOW NAUTA WORKS]\nNauta sits on top of your existing SAP and Manhattan WMS. We don't replace anything — we synchronize everything. Real-time tracking, automated PO management with 250+ active purchase orders, inventory optimization showing $9.1M on-hand with smart safety stock recommendations, and even Section 301 tariff exposure monitoring.\n\n[SLIDE 4 - ROI]\nFor a distributor Sysco's size, we typically see: 0.25% fill rate improvement translating to $15M+ in recovered revenue, 18% safety stock reduction freeing $180M+ in working capital, and a 92% reduction in emergency POs.\n\n[SLIDE 5 - NEXT STEPS]\nI'd love to show you a live 20-minute demo tailored to Sysco's specific distribution network. Would next Tuesday or Wednesday work? I'll have our food distribution specialist on the call too.`,
+    script: `[SLIDE 1 - OPENER]\nHi Robert, thanks for taking a few minutes to watch this. I put this together specifically for Sysco because I know managing 500+ distribution centers with on-time delivery expectations from your restaurant clients is no small feat.\n\n[SLIDE 2 - THE PAIN]\nHere's what we're seeing across food distributors your size: detention and demurrage costs averaging $1,200 per container, OTIF rates stuck below 85%, and safety stock levels 20-30% higher than they need to be — all because systems don't talk to each other in real-time.\n\nAt Balboa, we track 92 in-transit shipments in real-time right now, and our platform flagged 801 delayed shipments this week alone — before they became customer-facing problems.\n\n[SLIDE 3 - HOW NAUTA WORKS]\nBalboa sits on top of your existing SAP and Manhattan WMS. We don't replace anything — we synchronize everything. Real-time tracking, automated PO management with 250+ active purchase orders, inventory optimization showing $9.1M on-hand with smart safety stock recommendations, and even Section 301 tariff exposure monitoring.\n\n[SLIDE 4 - ROI]\nFor a distributor Sysco's size, we typically see: 0.25% fill rate improvement translating to $15M+ in recovered revenue, 18% safety stock reduction freeing $180M+ in working capital, and a 92% reduction in emergency POs.\n\n[SLIDE 5 - NEXT STEPS]\nI'd love to show you a live 20-minute demo tailored to Sysco's specific distribution network. Would next Tuesday or Wednesday work? I'll have our food distribution specialist on the call too.`,
     slides: [
-      { title: "Built for Sysco", subtitle: "A personalized look at how Nauta transforms food distribution operations", bullets: ["500+ DCs, one unified control tower", "Real-time visibility across your entire supply chain", "Purpose-built for food & beverage distribution"], highlightStat: "3 min read" },
+      { title: "Built for Sysco", subtitle: "A personalized look at how Balboa transforms food distribution operations", bullets: ["500+ DCs, one unified control tower", "Real-time visibility across your entire supply chain", "Purpose-built for food & beverage distribution"], highlightStat: "3 min read" },
       { title: "The $47M Problem", subtitle: "What fragmented systems cost food distributors", bullets: ["D&D costs: $1,200+ per container average", "OTIF stuck below 85% industry-wide", "Safety stock 20-30% higher than necessary", "Emergency POs destroying margins"], highlightStat: "$47M annual waste" },
-      { title: "How Nauta Works", subtitle: "One platform. Every system connected.", bullets: ["Sits on top of SAP + Manhattan WMS", "92 shipments tracked in real-time right now", "Automated PO management (250+ active)", "Section 301 tariff exposure monitoring"], highlightStat: "801 delays caught this week" },
+      { title: "How Balboa Works", subtitle: "One platform. Every system connected.", bullets: ["Sits on top of SAP + Manhattan WMS", "92 shipments tracked in real-time right now", "Automated PO management (250+ active)", "Section 301 tariff exposure monitoring"], highlightStat: "801 delays caught this week" },
       { title: "Your ROI Potential", subtitle: "Based on Sysco's distribution volume", bullets: ["Fill rate +0.25% = $15M+ recovered revenue", "Safety stock -18% = $180M+ freed capital", "Emergency PO reduction: 92%", "10-15 day DIO improvement"], highlightStat: "$195M+ total impact" },
       { title: "Let's Talk", subtitle: "20-minute live demo, tailored to Sysco", bullets: ["See your actual pain points addressed live", "Meet our food distribution specialist", "Get a custom ROI analysis", "No commitment required"], highlightStat: "Next Tuesday?" },
     ],
@@ -918,9 +918,9 @@ export const MOCK_PREP_KITS: PrepKit[] = [
     language: "english",
     sections: [
       { title: "Agenda (30 min)", items: ["5 min — Sysco context recap + confirm priorities", "10 min — Live dashboard: real-time tracking + D&D alerts", "8 min — OTIF recovery workflow demo", "5 min — ROI discussion: fill rate + safety stock", "2 min — Next steps + technical validation call"] },
-      { title: "Key Talking Points", items: ["Sysco manages 500+ DCs — Nauta unifies visibility across all of them", "Their SAP + Manhattan WMS stack is a perfect integration fit", "D&D costs are their #1 stated pain — show the automated D&D alert engine", "OTIF is at 22% in our demo — show how Nauta gets it above 90%", "Reference the MODEX conversation with Sarah Chen at US Foods as social proof"] },
+      { title: "Key Talking Points", items: ["Sysco manages 500+ DCs — Balboa unifies visibility across all of them", "Their SAP + Manhattan WMS stack is a perfect integration fit", "D&D costs are their #1 stated pain — show the automated D&D alert engine", "OTIF is at 22% in our demo — show how Balboa gets it above 90%", "Reference the MODEX conversation with Sarah Chen at US Foods as social proof"] },
       { title: "Demo Flow", items: ["Start with Real-Time Tracking dashboard (92 in-transit)", "Show delayed shipment alerts (801 flagged this week)", "Navigate to Order Management — filter by Sysco's top suppliers", "Show Inventory Health — $9.1M on-hand with safety stock optimization", "End with Tariff module — Section 301 exposure (relevant for imports from Asia)"] },
-      { title: "Objection Handling", items: ["'We already have SAP' → Nauta augments SAP, doesn't replace it. We fill the gaps between ERP and real-time execution", "'Too expensive' → Anchor to ROI: 0.25% fill rate improvement = $15M. Nauta pays for itself in 3 months", "'Implementation timeline' → 6-8 week deployment for food distributors. We've done this for companies your size", "'We need IT approval' → Great, let's schedule a technical validation call with your IT team"] },
+      { title: "Objection Handling", items: ["'We already have SAP' → Balboa augments SAP, doesn't replace it. We fill the gaps between ERP and real-time execution", "'Too expensive' → Anchor to ROI: 0.25% fill rate improvement = $15M. Balboa pays for itself in 3 months", "'Implementation timeline' → 6-8 week deployment for food distributors. We've done this for companies your size", "'We need IT approval' → Great, let's schedule a technical validation call with your IT team"] },
       { title: "Success Metrics", items: ["Demo rating: Did they ask follow-up questions?", "Champion identification: Is Robert the internal champion or does he need to bring in VP Procurement?", "Technical fit: Did they confirm SAP + Manhattan WMS?", "Timeline: Did they agree to a next step within 2 weeks?"] },
     ],
     createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
@@ -945,9 +945,9 @@ export const MOCK_BATTLE_CARDS: BattleCard[] = [
     competitorDisplayName: "Blue Yonder",
     strengths: ["Strong ML-based demand forecasting", "Large enterprise install base", "Good Walmart/retail vertical presence", "Comprehensive planning suite"],
     weaknesses: ["18+ month implementation timeline", "No real-time execution layer — planning only", "Expensive: $500K+ annual contracts typical", "Poor mid-market fit ($200M-$3B companies)", "No autonomous action — generates recommendations, not actions"],
-    balboaDifferentiators: ["Nauta deploys in 6-8 weeks vs 18+ months", "We ACT on alerts, not just surface them", "Purpose-built for mid-market distributors and importers", "Real-time execution: 92 shipments tracked live, 801 delays caught this week", "Fraction of the cost with faster time-to-value"],
+    balboaDifferentiators: ["Balboa deploys in 6-8 weeks vs 18+ months", "We ACT on alerts, not just surface them", "Purpose-built for mid-market distributors and importers", "Real-time execution: 92 shipments tracked live, 801 delays caught this week", "Fraction of the cost with faster time-to-value"],
     killerQuestions: ["How long has your Blue Yonder implementation been running — and are you using more than 30% of the features?", "When Blue Yonder surfaces a delay alert, what happens next? Who acts on it and how fast?", "What's your current fill rate — and has Blue Yonder meaningfully improved it?", "How many of your team members actually log into Blue Yonder daily?"],
-    landmines: ["Don't trash Blue Yonder's forecasting — it IS good. Position Nauta as complementary for execution", "If they're mid-implementation, don't push replacement. Offer Nauta as the execution layer on top", "Blue Yonder has strong relationships with retail buyers — don't compete on that vertical", "Watch for sunk cost fallacy: 'We've already invested $2M in Blue Yonder'"],
+    landmines: ["Don't trash Blue Yonder's forecasting — it IS good. Position Balboa as complementary for execution", "If they're mid-implementation, don't push replacement. Offer Balboa as the execution layer on top", "Blue Yonder has strong relationships with retail buyers — don't compete on that vertical", "Watch for sunk cost fallacy: 'We've already invested $2M in Blue Yonder'"],
     autoDetectedFrom: "companyIntel.techStack",
     createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
   },
@@ -956,7 +956,7 @@ export const MOCK_BATTLE_CARDS: BattleCard[] = [
     competitorDisplayName: "E2Open",
     strengths: ["Good supply chain visibility network", "Strong in automotive and electronics", "Multi-tier supplier visibility", "Established brand in large enterprises"],
     weaknesses: ["Visibility WITHOUT action — shows problems but doesn't solve them", "Complex UI, low user adoption rates", "Slow to innovate — legacy architecture", "Poor AI/ML capabilities compared to newer platforms", "Integration complexity with mid-market ERPs"],
-    balboaDifferentiators: ["Nauta acts on alerts autonomously — E2Open just shows them", "Modern AI-first architecture vs E2Open's legacy stack", "3x faster implementation (6-8 weeks vs 6+ months)", "Built specifically for mid-market distributors, not enterprise-first", "Unified procurement + logistics + inventory in one view"],
+    balboaDifferentiators: ["Balboa acts on alerts autonomously — E2Open just shows them", "Modern AI-first architecture vs E2Open's legacy stack", "3x faster implementation (6-8 weeks vs 6+ months)", "Built specifically for mid-market distributors, not enterprise-first", "Unified procurement + logistics + inventory in one view"],
     killerQuestions: ["When E2Open shows you a delayed shipment, what happens next? How many hours until someone takes action?", "What percentage of E2Open alerts does your team actually act on vs ignore?", "How long did E2Open take to implement, and what's your annual renewal cost?", "Can E2Open automatically adjust your purchase orders when a supplier is consistently late?"],
     landmines: ["E2Open has strong network effects — if key suppliers are on E2Open, acknowledge that value", "Don't compete on multi-tier visibility for very deep supply chains (Tier 3+)", "E2Open recently acquired BluJay — they may pitch expanded logistics capabilities", "If the prospect has an E2Open renewal coming up, timing is everything"],
     autoDetectedFrom: "callLogs.notes",
@@ -991,11 +991,11 @@ export const MOCK_PLAYBOOK_INSIGHTS: PlaybookInsight[] = [
   {
     id: "pi-3", category: "messaging",
     title: "Pain-point messaging outperforms feature-focused by 2.8x on LinkedIn",
-    description: "LinkedIn messages that reference a specific pain point (e.g., 'D&D costs', 'fill rate gaps') get significantly more engagement than messages that lead with Nauta's features or capabilities.",
+    description: "LinkedIn messages that reference a specific pain point (e.g., 'D&D costs', 'fill rate gaps') get significantly more engagement than messages that lead with Balboa's features or capabilities.",
     metric: "38% response vs 14% for feature-focused",
     confidence: "high", sampleSize: 83,
     dataSource: "All LinkedIn outreach messages, last 60 days",
-    actionable: "Structure all LinkedIn messages as: pain point → empathy → subtle Nauta connection. Never lead with 'Nauta does X'.",
+    actionable: "Structure all LinkedIn messages as: pain point → empathy → subtle Balboa connection. Never lead with 'Balboa does X'.",
     tags: ["linkedin", "messaging_style", "pain_point"],
     trend: "improving", discoveredAt: new Date(Date.now() - 3 * 86400000).toISOString(),
   },
@@ -1082,7 +1082,7 @@ export const MOCK_PERSONA_ANALYTICS: PersonaAnalytics[] = [
   {
     persona: "VP Supply Chain", totalContacted: 47, responseRate: 38, avgResponseTimeDays: 1.8,
     bestChannel: "linkedin", bestMessageType: "value_share", bestTimeOfDay: "Wednesday 2-4 PM",
-    topOpeningLines: ["Distributors your size typically recover $1.25M in fill rate improvements alone", "I noticed your team is expanding the Southeast DC network — that's exactly the complexity Nauta was built for", "After MODEX, I put together a quick analysis of D&D costs for food distributors your size"],
+    topOpeningLines: ["Distributors your size typically recover $1.25M in fill rate improvements alone", "I noticed your team is expanding the Southeast DC network — that's exactly the complexity Balboa was built for", "After MODEX, I put together a quick analysis of D&D costs for food distributors your size"],
     conversionToDemo: 42, isChampionMaterial: true, championScore: 89,
   },
   {
@@ -1100,7 +1100,7 @@ export const MOCK_PERSONA_ANALYTICS: PersonaAnalytics[] = [
   {
     persona: "CFO / Controller", totalContacted: 22, responseRate: 22, avgResponseTimeDays: 3.1,
     bestChannel: "email", bestMessageType: "value_share", bestTimeOfDay: "Tuesday 9-11 AM",
-    topOpeningLines: ["18% safety stock reduction = $18-27M freed working capital for distributors your size", "Your DIO is probably 15-20 days higher than it needs to be — that's $13-20M in locked cash", "The CFO at [similar company] told me Nauta paid for itself in 90 days from working capital alone"],
+    topOpeningLines: ["18% safety stock reduction = $18-27M freed working capital for distributors your size", "Your DIO is probably 15-20 days higher than it needs to be — that's $13-20M in locked cash", "The CFO at [similar company] told me Balboa paid for itself in 90 days from working capital alone"],
     conversionToDemo: 25, isChampionMaterial: false, championScore: 45,
   },
   {
@@ -1122,7 +1122,7 @@ export const MOCK_TEMPLATE_RANKINGS: TemplateEffectiveness[] = [
     templateId: "tmpl-2", templateName: "Post-Event Follow-up", channel: "linkedin",
     totalSent: 53, openRate: 100, replyRate: 45, positiveReplyRate: 38, avgReplyTimeDays: 0.8,
     bestPersona: "VP Supply Chain", bestIndustry: "All verticals", bestTimeSlot: "Same day as event",
-    sampleResponses: ["Great meeting you too! Yes, let's schedule something for next week.", "Thanks for reaching out. I'd be interested in learning more about Nauta."],
+    sampleResponses: ["Great meeting you too! Yes, let's schedule something for next week.", "Thanks for reaching out. I'd be interested in learning more about Balboa."],
   },
   {
     templateId: "tmpl-3", templateName: "Pain Point Discovery", channel: "linkedin",
@@ -1146,7 +1146,7 @@ export const MOCK_TEMPLATE_RANKINGS: TemplateEffectiveness[] = [
     templateId: "tmpl-6", templateName: "Competitor Displacement", channel: "email",
     totalSent: 41, openRate: 25, replyRate: 22, positiveReplyRate: 15, avgReplyTimeDays: 2.8,
     bestPersona: "Director of Logistics", bestIndustry: "Industrial Equipment", bestTimeSlot: "Wednesday 2-4 PM",
-    sampleResponses: ["We're actually not that happy with our current tool. What's different about Nauta?", "Our contract is up for renewal in Q3. Can we talk closer to then?"],
+    sampleResponses: ["We're actually not that happy with our current tool. What's different about Balboa?", "Our contract is up for renewal in Q3. Can we talk closer to then?"],
   },
 ];
 
@@ -1238,7 +1238,7 @@ export const MOCK_PATTERN_INSIGHTS: PatternInsight[] = [
     impact: "high", direction: "positive",
     metric: "Response Rate", baseline: 14, observed: 38, lift: 171,
     sampleSize: 83, confidence: 92,
-    recommendation: "Structure all LinkedIn messages as: pain point > empathy > subtle Nauta connection. Never lead with 'Nauta does X'.",
+    recommendation: "Structure all LinkedIn messages as: pain point > empathy > subtle Balboa connection. Never lead with 'Balboa does X'.",
     relatedPersonas: ["VP Supply Chain", "VP Procurement"], relatedChannels: ["linkedin"],
     discoveredAt: new Date(Date.now() - 3 * 86400000).toISOString(),
   },

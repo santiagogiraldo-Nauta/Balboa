@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/supabase/auth-check";
-import { insertPlaybookMetric, createSignalAndAction, upsertLead } from "@/lib/db";
+import { insertPlaybookMetric, upsertLead } from "@/lib/db";
 import { getLeads } from "@/lib/db";
 import { trackEvent } from "@/lib/tracking";
+import { config } from "@/lib/config";
+import { queueOutreach } from "@/lib/outreach-gate";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,7 +19,60 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Get lead
+    // ========================================
+    // SANDBOX MODE: Simulate send, no real delivery
+    // ========================================
+    if (config.isSandbox) {
+      trackEvent(supabase, user.id, {
+        eventCategory: "outreach",
+        eventAction: "message_sent",
+        leadId,
+        channel: channel as "email" | "linkedin",
+        source: "mock",
+        metadata: { sandbox: true, simulated: true },
+      });
+
+      return NextResponse.json({
+        success: true,
+        leadId,
+        channel,
+        message: "[SANDBOX] Message simulated — no real send",
+        sandbox: true,
+      });
+    }
+
+    // ========================================
+    // PRODUCTION MODE: Route through outreach gate
+    // ========================================
+    const gateResult = await queueOutreach(supabase, user.id, {
+      leadId,
+      channel: channel as "email" | "linkedin",
+      subject,
+      body: message,
+    });
+
+    // If queued for approval, return early (don't log as sent yet)
+    if (gateResult.queued) {
+      trackEvent(supabase, user.id, {
+        eventCategory: "outreach",
+        eventAction: "message_queued",
+        leadId,
+        channel: channel as "email" | "linkedin",
+        source: "api",
+        metadata: { queueId: gateResult.queueId },
+      });
+
+      return NextResponse.json({
+        success: true,
+        queued: true,
+        queueId: gateResult.queueId,
+        message: gateResult.message,
+      });
+    }
+
+    // ========================================
+    // DIRECT SEND: Gate approved immediate sending
+    // ========================================
     const leads = await getLeads(supabase, user.id);
     const lead = leads.find((l) => l.id === leadId);
 
