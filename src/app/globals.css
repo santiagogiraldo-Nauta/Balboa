@@ -700,35 +700,7 @@ select:hover, input[type="text"]:hover, input[type="search"]:hover {
   color: #7c3aed;
 }
 
-/* === FLOATING ACTION BUTTON === */
-.fab {
-  position: fixed;
-  bottom: 28px;
-  right: 28px;
-  width: 54px;
-  height: 54px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #2b8a3e, #40c057);
-  color: white;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 6px 20px rgba(43, 138, 62, 0.4), 0 2px 6px rgba(0,0,0,0.1);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 60;
-}
-
-.fab:hover {
-  background: var(--balboa-green-light);
-  transform: translateY(-2px) scale(1.04);
-  box-shadow: 0 8px 24px rgba(43, 138, 62, 0.35), 0 4px 8px rgba(0,0,0,0.08);
-}
-
-.fab:active {
-  transform: translateY(0) scale(0.98);
-}
+/* FAB removed — call logging is now automatic via integrations */
 
 /* === MODAL === */
 .modal-overlay {

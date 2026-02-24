@@ -22,7 +22,6 @@ import OutreachCommandCenter from "@/components/OutreachCommandCenter";
 import Prospecting from "@/components/Prospecting";
 import ActivityTimeline from "@/components/ActivityTimeline";
 import CrossChannelWarning from "@/components/CrossChannelWarning";
-import LogCallModal from "@/components/LogCallModal";
 import VideoPrepModal from "@/components/VideoPrepModal";
 import SalesPrepModal from "@/components/SalesPrepModal";
 import PrepKitPanel from "@/components/PrepKitPanel";
@@ -62,7 +61,6 @@ export default function Dashboard() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [filterTier, setFilterTier] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [showCallModal, setShowCallModal] = useState(false);
   const [showVideoPrep, setShowVideoPrep] = useState(false);
   const [showPrepKit, setShowPrepKit] = useState(false);
   const [contentLanguage, setContentLanguage] = useState<SupportedLanguage>("english");
@@ -295,7 +293,7 @@ export default function Dashboard() {
         touchpointTimeline: [...l.touchpointTimeline, newTimeline],
       };
     }));
-    setShowCallModal(false);
+    // Call modal removed — calls auto-logged via integration
 
     // Track call events
     trackEventClient({
@@ -1095,9 +1093,7 @@ export default function Dashboard() {
             <button onClick={() => setShowAnalyzer(true)} className="btn-primary" style={{ background: "var(--balboa-blue)", fontSize: 12, boxShadow: "0 1px 4px rgba(59, 91, 219, 0.25)" }}>
               <Sparkles className="w-3.5 h-3.5" /> Analyze
             </button>
-            <button onClick={() => setShowCallModal(true)} className="btn-primary" style={{ background: "var(--balboa-green)", fontSize: 12, boxShadow: "0 1px 4px rgba(43, 138, 62, 0.25)" }}>
-              <Phone className="w-3.5 h-3.5" /> Log Call
-            </button>
+            {/* Call logging is automatic via Aircall/Amplemarket integration */}
             <label className="btn-secondary cursor-pointer" style={{ fontSize: 12 }}>
               <Upload className="w-3.5 h-3.5" /> Import CSV
               <input type="file" accept=".csv,.zip" onChange={handleFileUpload} className="hidden" />
@@ -2031,19 +2027,7 @@ export default function Dashboard() {
         <AnalyzerPanel onDismiss={() => setShowAnalyzer(false)} />
       )}
 
-      {/* FAB — Log Call (always visible) */}
-      <button className="fab" onClick={() => setShowCallModal(true)} title="Log a Call">
-        <Phone className="w-5 h-5" />
-      </button>
-
-      {/* Log Call Modal */}
-      {showCallModal && (
-        <LogCallModal
-          leads={leads}
-          onClose={() => setShowCallModal(false)}
-          onSubmit={handleCallLogSubmit}
-        />
-      )}
+      {/* Call logging is now automatic via Aircall/Amplemarket integration */}
 
       {/* Video Prep Modal */}
       {showVideoPrep && selectedLead && (
