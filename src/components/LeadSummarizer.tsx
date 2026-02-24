@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { trackEventClient } from "@/lib/tracking";
 import type { Lead, SupportedLanguage, LeadSummary } from "@/lib/types";
 
 interface LeadSummarizerProps {
@@ -15,9 +16,15 @@ export default function LeadSummarizer({ lead, language }: LeadSummarizerProps) 
 
   const handleSummarize = async () => {
     if (summary) {
+      if (isExpanded) {
+        trackEventClient({ eventCategory: "analysis", eventAction: "lead_summary_collapsed", leadId: lead.id });
+      } else {
+        trackEventClient({ eventCategory: "analysis", eventAction: "lead_summary_expanded", leadId: lead.id });
+      }
       setIsExpanded(!isExpanded);
       return;
     }
+    trackEventClient({ eventCategory: "analysis", eventAction: "lead_summary_requested", leadId: lead.id });
     setIsExpanded(true);
     setIsLoading(true);
     try {
@@ -101,7 +108,10 @@ export default function LeadSummarizer({ lead, language }: LeadSummarizerProps) 
           {"\u26A1"} Lead Summary
         </div>
         <button
-          onClick={() => setIsExpanded(false)}
+          onClick={() => {
+            trackEventClient({ eventCategory: "analysis", eventAction: "lead_summary_collapsed", leadId: lead.id });
+            setIsExpanded(false);
+          }}
           style={{
             background: "none",
             border: "none",

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Linkedin, Sparkles, Loader2, Copy, ExternalLink, User } from "lucide-react";
+import { trackEventClient } from "@/lib/tracking";
 import type { Lead, SupportedLanguage } from "@/lib/types";
 
 interface LinkedInPopupProps {
@@ -35,6 +36,10 @@ export default function LinkedInPopup({
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    trackEventClient({ eventCategory: "outreach", eventAction: "linkedin_popup_opened", leadId: lead.id, channel: "linkedin" });
+  }, []);
+
   const charCount = body.length;
   const isOverLimit = charCount > LINKEDIN_CHAR_LIMIT;
 
@@ -56,6 +61,7 @@ export default function LinkedInPopup({
       if (data.message?.body) {
         setBody(data.message.body);
       }
+      trackEventClient({ eventCategory: "outreach", eventAction: "linkedin_ai_generated", leadId: lead.id, channel: "linkedin" });
     } catch {
       setBody(
         `Hi ${lead.firstName},\n\nI noticed your work at ${lead.company} and would love to connect. I think there could be some great synergies between what we're doing and your team's goals.\n\nWould you be open to a quick chat?`
@@ -65,6 +71,7 @@ export default function LinkedInPopup({
   };
 
   const handleCopyAndOpen = () => {
+    trackEventClient({ eventCategory: "outreach", eventAction: "linkedin_copy_and_open", leadId: lead.id, channel: "linkedin" });
     navigator.clipboard.writeText(body);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -143,7 +150,10 @@ export default function LinkedInPopup({
           <div style={{ display: "flex", gap: 8 }}>
             {profileUrl && (
               <button
-                onClick={() => window.open(getSalesNavUrl(profileUrl), "_blank")}
+                onClick={() => {
+                  trackEventClient({ eventCategory: "outreach", eventAction: "linkedin_sales_nav_opened", leadId: lead.id, channel: "linkedin" });
+                  window.open(getSalesNavUrl(profileUrl), "_blank");
+                }}
                 style={{
                   display: "flex", alignItems: "center", gap: 4,
                   padding: "6px 12px", borderRadius: 8, flex: 1,
@@ -158,6 +168,7 @@ export default function LinkedInPopup({
             )}
             <button
               onClick={() => {
+                trackEventClient({ eventCategory: "outreach", eventAction: "linkedin_profile_viewed", leadId: lead.id, channel: "linkedin" });
                 const url = lead.linkedinUrl
                   || `https://linkedin.com/search/results/people/?keywords=${encodeURIComponent(lead.firstName + " " + lead.lastName)}`;
                 window.open(url, "_blank");

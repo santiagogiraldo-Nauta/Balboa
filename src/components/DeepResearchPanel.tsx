@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { trackEventClient } from "@/lib/tracking";
 import type { Lead, SupportedLanguage, DeepResearchResult } from "@/lib/types";
 
 interface DeepResearchPanelProps {
@@ -25,6 +26,10 @@ export default function DeepResearchPanel({ lead, onClose, language }: DeepResea
   const [researchData, setResearchData] = useState<DeepResearchResult | null>(null);
   const [loadedTabs, setLoadedTabs] = useState<Set<ResearchTab>>(new Set());
 
+  useEffect(() => {
+    trackEventClient({ eventCategory: "analysis", eventAction: "deep_research_panel_opened", leadId: lead.id });
+  }, []);
+
   const fetchTab = async (tab: ResearchTab) => {
     setIsLoading(true);
     try {
@@ -40,6 +45,7 @@ export default function DeepResearchPanel({ lead, onClose, language }: DeepResea
           return { ...base, ...data.result } as DeepResearchResult;
         });
         setLoadedTabs((prev) => new Set(prev).add(tab));
+        trackEventClient({ eventCategory: "analysis", eventAction: "deep_research_tab_completed", leadId: lead.id, metadata: { tab } });
       }
     } catch (err) {
       console.error("Deep research fetch error:", err);
@@ -49,12 +55,14 @@ export default function DeepResearchPanel({ lead, onClose, language }: DeepResea
 
   const handleTabClick = (tab: ResearchTab) => {
     setActiveTab(tab);
+    trackEventClient({ eventCategory: "analysis", eventAction: "deep_research_tab_clicked", leadId: lead.id, metadata: { tab } });
     if (!loadedTabs.has(tab)) {
       fetchTab(tab);
     }
   };
 
   const handleResearchAll = async () => {
+    trackEventClient({ eventCategory: "analysis", eventAction: "deep_research_all_tabs", leadId: lead.id });
     setIsLoading(true);
     try {
       const res = await fetch("/api/research/lead", {

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Mail, Sparkles, Loader2, Send, Globe, AlertCircle } from "lucide-react";
+import { trackEventClient } from "@/lib/tracking";
 import type { Lead, SupportedLanguage } from "@/lib/types";
 
 interface EmailPopupProps {
@@ -33,6 +34,15 @@ export default function EmailPopup({
   const [sending, setSending] = useState(false);
   const [manualEmail, setManualEmail] = useState("");
 
+  useEffect(() => {
+    trackEventClient({ eventCategory: "outreach", eventAction: "email_popup_opened", leadId: lead.id, channel: "email" });
+  }, []);
+
+  const handleClose = () => {
+    trackEventClient({ eventCategory: "outreach", eventAction: "email_popup_closed", leadId: lead.id, channel: "email" });
+    onClose();
+  };
+
   const email = lead.email || manualEmail;
   const domain = email ? extractDomain(email) : "";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,6 +65,7 @@ export default function EmailPopup({
       const data = await resp.json();
       if (data.message?.subject) setSubject(data.message.subject);
       if (data.message?.body) setBody(data.message.body);
+      trackEventClient({ eventCategory: "outreach", eventAction: "email_ai_generated", leadId: lead.id, channel: "email" });
     } catch {
       setSubject(`Connecting with ${lead.company}`);
       setBody(
@@ -66,6 +77,7 @@ export default function EmailPopup({
 
   const handleSend = async () => {
     if (!body.trim() || !subject.trim()) return;
+    trackEventClient({ eventCategory: "outreach", eventAction: "email_sent_from_popup", leadId: lead.id, channel: "email" });
     setSending(true);
     try {
       onSend({ subject, body });
@@ -75,7 +87,7 @@ export default function EmailPopup({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 600 }}>
         {/* Header */}
         <div className="modal-header">
@@ -96,7 +108,7 @@ export default function EmailPopup({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="btn-ghost"><X className="w-4 h-4" /></button>
+          <button onClick={handleClose} className="btn-ghost"><X className="w-4 h-4" /></button>
         </div>
 
         {/* Body */}
@@ -232,7 +244,7 @@ export default function EmailPopup({
 
         {/* Footer */}
         <div className="modal-footer">
-          <button onClick={onClose} className="btn-secondary" style={{ fontSize: 13 }}>
+          <button onClick={handleClose} className="btn-secondary" style={{ fontSize: 13 }}>
             Cancel
           </button>
           <button

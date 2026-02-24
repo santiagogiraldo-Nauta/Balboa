@@ -16,6 +16,7 @@ import {
   Mic,
 } from "lucide-react";
 import type { Lead, SupportedLanguage, ColdCallScript as ColdCallScriptType } from "@/lib/types";
+import { trackEventClient } from "@/lib/tracking";
 
 // ─── Props ──────────────────────────────────────────────────────
 
@@ -78,12 +79,15 @@ export default function ColdCallScript({
   const [leadExpanded, setLeadExpanded] = useState(false);
 
   // Clipboard helper
-  const copyToClipboard = useCallback((text: string) => {
+  const copyToClipboard = useCallback((text: string, section?: string) => {
     navigator.clipboard.writeText(text).then(() => {
       setToast("Copied to clipboard");
       setTimeout(() => setToast(null), 2000);
+      if (section) {
+        trackEventClient({ eventCategory: "call", eventAction: "call_script_section_copied", leadId: lead.id, channel: "call", metadata: { section } });
+      }
     });
-  }, []);
+  }, [lead.id]);
 
   // ─── Timer logic ─────────────────────────────────────────────
 
@@ -110,19 +114,28 @@ export default function ColdCallScript({
     setSelectedOutcome(null);
     setCallNotes("");
     if (onCallStarted) onCallStarted(lead);
+    trackEventClient({ eventCategory: "call", eventAction: "call_timer_started", leadId: lead.id, channel: "call" });
   };
 
-  const pauseTimer = () => setTimerState("paused");
-  const resumeTimer = () => setTimerState("running");
+  const pauseTimer = () => {
+    setTimerState("paused");
+    trackEventClient({ eventCategory: "call", eventAction: "call_timer_paused", leadId: lead.id, channel: "call", numericValue: elapsed });
+  };
+  const resumeTimer = () => {
+    setTimerState("running");
+    trackEventClient({ eventCategory: "call", eventAction: "call_timer_resumed", leadId: lead.id, channel: "call" });
+  };
 
   const stopTimer = () => {
     setTimerState("stopped");
     setShowOutcome(true);
+    trackEventClient({ eventCategory: "call", eventAction: "call_timer_stopped", leadId: lead.id, channel: "call", numericValue: elapsed });
   };
 
   // ─── Generate script ─────────────────────────────────────────
 
   const generateScript = async () => {
+    const isRegenerate = !!script;
     setLoading(true);
     setError(null);
     try {
@@ -135,6 +148,7 @@ export default function ColdCallScript({
       const { script: generatedScript } = await res.json();
       setScript(generatedScript);
       setScriptTab("main");
+      trackEventClient({ eventCategory: "call", eventAction: isRegenerate ? "call_script_regenerated" : "call_script_requested", leadId: lead.id, channel: "call" });
     } catch (err) {
       console.error("Script generation error:", err);
       setError("Failed to generate script. Please try again.");
@@ -148,6 +162,7 @@ export default function ColdCallScript({
   const showDialerToast = (provider: string) => {
     setToast(`${provider} integration coming soon`);
     setTimeout(() => setToast(null), 3000);
+    trackEventClient({ eventCategory: "call", eventAction: "call_dialer_clicked", leadId: lead.id, channel: "call", metadata: { platform: provider.toLowerCase().includes("aircall") ? "aircall" : "amplemarket" } });
   };
 
   // ─── Objection toggle ────────────────────────────────────────
@@ -173,6 +188,7 @@ export default function ColdCallScript({
       notes: callNotes,
       scriptId: script.id,
     });
+    trackEventClient({ eventCategory: "call", eventAction: "call_outcome_saved", leadId: lead.id, channel: "call", metadata: { outcome: selectedOutcome, notes: callNotes } });
     setToast("Call logged successfully");
     setTimeout(() => setToast(null), 2000);
     setShowOutcome(false);
@@ -524,7 +540,7 @@ export default function ColdCallScript({
             {OUTCOME_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => setSelectedOutcome(opt.value)}
+                onClick={() => { setSelectedOutcome(opt.value); trackEventClient({ eventCategory: "call", eventAction: "call_outcome_selected", leadId: lead.id, channel: "call", metadata: { outcome: opt.value } }); }}
                 style={{
                   padding: "6px 14px",
                   fontSize: 11,
@@ -658,7 +674,7 @@ export default function ColdCallScript({
             ].map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setScriptTab(tab.key)}
+                onClick={() => { setScriptTab(tab.key); trackEventClient({ eventCategory: "call", eventAction: "call_script_tab_viewed", leadId: lead.id, channel: "call", metadata: { tab: tab.key } }); }}
                 style={{
                   flex: 1,
                   padding: "8px 0",
@@ -705,7 +721,7 @@ export default function ColdCallScript({
                     Opener
                   </span>
                   <button
-                    onClick={() => copyToClipboard(script.opener)}
+                    onClick={() => copyToClipboard(script.opener, "opener")}
                     style={{ background: "none", border: "none", cursor: "pointer", color: "#868e96", padding: 2 }}
                     title="Copy opener"
                   >
@@ -724,7 +740,7 @@ export default function ColdCallScript({
                     Value Proposition
                   </span>
                   <button
-                    onClick={() => copyToClipboard(script.valueProposition)}
+                    onClick={() => copyToClipboard(script.valueProposition, "valueProposition")}
                     style={{ background: "none", border: "none", cursor: "pointer", color: "#868e96", padding: 2 }}
                     title="Copy value prop"
                   >
@@ -835,7 +851,7 @@ export default function ColdCallScript({
                     Close Attempt
                   </span>
                   <button
-                    onClick={() => copyToClipboard(script.closeAttempt)}
+                    onClick={() => copyToClipboard(script.closeAttempt, "closeAttempt")}
                     style={{ background: "none", border: "none", cursor: "pointer", color: "#868e96", padding: 2 }}
                     title="Copy close"
                   >
@@ -864,7 +880,7 @@ export default function ColdCallScript({
                   Voicemail Script (~30 seconds)
                 </span>
                 <button
-                  onClick={() => copyToClipboard(script.voicemailScript)}
+                  onClick={() => copyToClipboard(script.voicemailScript, "voicemail")}
                   style={{ background: "none", border: "none", cursor: "pointer", color: "#868e96", padding: 2 }}
                   title="Copy voicemail script"
                 >
@@ -892,7 +908,7 @@ export default function ColdCallScript({
                   Gatekeeper Script
                 </span>
                 <button
-                  onClick={() => copyToClipboard(script.gatekeeperScript)}
+                  onClick={() => copyToClipboard(script.gatekeeperScript, "gatekeeper")}
                   style={{ background: "none", border: "none", cursor: "pointer", color: "#868e96", padding: 2 }}
                   title="Copy gatekeeper script"
                 >

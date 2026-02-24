@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Mail,
   Linkedin,
@@ -19,6 +19,7 @@ import type {
   CommunicationMessage,
   OutreachChannel,
 } from "@/lib/types";
+import { trackEventClient } from "@/lib/tracking";
 
 interface CommunicationHubProps {
   lead: Lead;
@@ -83,11 +84,21 @@ export default function CommunicationHub({
     new Set()
   );
 
+  useEffect(() => {
+    trackEventClient({ eventCategory: "communication", eventAction: "communication_hub_viewed" });
+  }, []);
+
   const toggleThread = (threadId: string) => {
     setExpandedThreads((prev) => {
       const next = new Set(prev);
-      if (next.has(threadId)) next.delete(threadId);
-      else next.add(threadId);
+      if (next.has(threadId)) {
+        next.delete(threadId);
+        trackEventClient({ eventCategory: "communication", eventAction: "communication_thread_collapsed", metadata: { threadId } });
+      } else {
+        next.add(threadId);
+        const thread = communications.find((t) => t.id === threadId);
+        trackEventClient({ eventCategory: "communication", eventAction: "communication_thread_expanded", metadata: { threadId, channel: thread?.channel } });
+      }
       return next;
     });
   };
@@ -208,7 +219,10 @@ export default function CommunicationHub({
           return (
             <button
               key={tab.key}
-              onClick={() => setActiveChannel(tab.key)}
+              onClick={() => {
+                setActiveChannel(tab.key);
+                trackEventClient({ eventCategory: "communication", eventAction: "communication_channel_filtered", metadata: { channel: tab.key } });
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",

@@ -22,6 +22,7 @@ import type {
   SupportedLanguage,
   OutreachChannel,
 } from "@/lib/types";
+import { trackEventClient } from "@/lib/tracking";
 
 // ─── Props ──────────────────────────────────────────────────────
 
@@ -164,6 +165,7 @@ export default function EventCommandCenter({
         const { plan } = await res.json();
         console.log("[EventCommandCenter] Plan generated:", plan);
         // In a real app we'd update state/store here
+        trackEventClient({ eventCategory: "event", eventAction: "event_outreach_plan_generated", metadata: { eventId: selectedEvent?.id, attendeeCount: selectedEvent?.attendees.length } });
       }
     } catch (err) {
       console.error("Failed to generate plan:", err);
@@ -179,6 +181,10 @@ export default function EventCommandCenter({
     setActiveTab("attendees");
     setTerritoryFilter("all");
     setSearchQuery("");
+    const event = events.find((e) => e.id === id);
+    if (event) {
+      trackEventClient({ eventCategory: "event", eventAction: "event_selected", metadata: { eventId: event.id, eventName: event.name } });
+    }
   };
 
   // ─── Render helpers ──────────────────────────────────────────
@@ -315,7 +321,7 @@ export default function EventCommandCenter({
             <Filter size={13} style={{ color: "#6c757d" }} />
             <select
               value={territoryFilter}
-              onChange={(e) => setTerritoryFilter(e.target.value)}
+              onChange={(e) => { setTerritoryFilter(e.target.value); trackEventClient({ eventCategory: "event", eventAction: "event_attendee_filtered", metadata: { territory: e.target.value } }); }}
               style={{
                 fontSize: 12,
                 padding: "7px 10px",
@@ -337,7 +343,7 @@ export default function EventCommandCenter({
 
           {/* Sort by ICP */}
           <button
-            onClick={() => setSortByIcp(!sortByIcp)}
+            onClick={() => { setSortByIcp(!sortByIcp); trackEventClient({ eventCategory: "event", eventAction: "event_attendee_sorted", metadata: { sortBy: "icp" } }); }}
             style={{
               fontSize: 11,
               padding: "7px 12px",
@@ -453,6 +459,7 @@ export default function EventCommandCenter({
                         onClick={(e) => {
                           e.stopPropagation();
                           window.open(`mailto:${att.email}`, "_blank");
+                          trackEventClient({ eventCategory: "event", eventAction: "event_attendee_email_opened", metadata: { attendeeEmail: att.email } });
                         }}
                         title="Send email"
                         style={{
@@ -476,6 +483,7 @@ export default function EventCommandCenter({
                         onClick={(e) => {
                           e.stopPropagation();
                           window.open(att.linkedinUrl, "_blank");
+                          trackEventClient({ eventCategory: "event", eventAction: "event_attendee_linkedin_opened", metadata: { attendeeName: `${att.firstName} ${att.lastName}` } });
                         }}
                         title="View LinkedIn"
                         style={{
@@ -506,6 +514,7 @@ export default function EventCommandCenter({
                         );
                         if (matchedLead) {
                           onNavigateToLead(matchedLead.id);
+                          trackEventClient({ eventCategory: "event", eventAction: "event_attendee_navigated_to_lead", leadId: matchedLead.id, metadata: { attendeeName: `${att.firstName} ${att.lastName}` } });
                         }
                       }}
                       title="Call"
@@ -953,7 +962,7 @@ export default function EventCommandCenter({
         {SUB_TABS.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => { setActiveTab(tab.key); trackEventClient({ eventCategory: "event", eventAction: "event_tab_switched", metadata: { tab: tab.key } }); }}
             style={{
               flex: 1,
               padding: "8px 0",

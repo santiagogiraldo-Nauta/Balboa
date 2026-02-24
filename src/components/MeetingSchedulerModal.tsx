@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Calendar, Clock, Video, Phone, Monitor, Sparkles, Loader2 } from "lucide-react";
 import type { Lead, SupportedLanguage } from "@/lib/types";
+import { trackEventClient } from "@/lib/tracking";
 
 interface MeetingSchedulerModalProps {
   lead: Lead;
@@ -39,6 +40,10 @@ export default function MeetingSchedulerModal({ lead, onClose, onSchedule, langu
   const [message, setMessage] = useState("");
   const [generating, setGenerating] = useState(false);
 
+  useEffect(() => {
+    trackEventClient({ eventCategory: "enablement", eventAction: "meeting_scheduler_opened", leadId: lead.id });
+  }, []);
+
   const handleGenerate = async () => {
     setGenerating(true);
     try {
@@ -57,6 +62,7 @@ export default function MeetingSchedulerModal({ lead, onClose, onSchedule, langu
       const data = await resp.json();
       if (data.message?.body) {
         setMessage(data.message.body);
+        trackEventClient({ eventCategory: "enablement", eventAction: "meeting_message_generated", leadId: lead.id, metadata: { meetingType } });
       }
     } catch {
       // Fallback message
@@ -71,6 +77,7 @@ export default function MeetingSchedulerModal({ lead, onClose, onSchedule, langu
   const handleSave = () => {
     if (!message.trim()) return;
     onSchedule({ date, time, type: meetingType, message });
+    trackEventClient({ eventCategory: "enablement", eventAction: "meeting_draft_saved", leadId: lead.id, metadata: { meetingType, date, time } });
   };
 
   return (

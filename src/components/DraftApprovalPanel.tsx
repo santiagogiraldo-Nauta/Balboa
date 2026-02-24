@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MessageSquare, MessageCircle, Copy, CheckCircle, XCircle, Send, Linkedin, AtSign, ChevronDown, ChevronUp, Mail } from "lucide-react";
 import type { Lead, DraftMessage } from "@/lib/types";
+import { trackEventClient } from "@/lib/tracking";
 
 interface DraftApprovalPanelProps {
   drafts: DraftMessage[];
@@ -96,8 +97,16 @@ export default function DraftApprovalPanel({
   const toggleExpand = (id: string) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        const draft = drafts.find((d) => d.id === id);
+        if (draft) {
+          trackEventClient({ eventCategory: "outreach", eventAction: "draft_expanded", metadata: { draftId: id, channel: draft.channel } });
+          trackEventClient({ eventCategory: "outreach", eventAction: "draft_reviewed", metadata: { draftId: id, channel: draft.channel, status: draft.status } });
+        }
+      }
       return next;
     });
   };

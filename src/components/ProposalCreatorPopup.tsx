@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, FileText, Sparkles, Loader2, Save } from "lucide-react";
 import type { Lead, SupportedLanguage } from "@/lib/types";
+import { trackEventClient } from "@/lib/tracking";
 
 export type ProposalDocType = "scope_of_work" | "proposal" | "deck" | "case_study" | "one_pager";
 
@@ -32,6 +33,10 @@ export default function ProposalCreatorPopup({
   const [body, setBody] = useState("");
   const [generating, setGenerating] = useState(false);
 
+  useEffect(() => {
+    trackEventClient({ eventCategory: "outreach", eventAction: "proposal_popup_opened", leadId: lead.id, channel: "email" });
+  }, []);
+
   const docLabel = DOC_TYPES.find(d => d.value === docType)?.label || docType;
 
   const handleGenerate = async () => {
@@ -52,6 +57,7 @@ export default function ProposalCreatorPopup({
       const data = await resp.json();
       if (data.message?.subject) setSubject(data.message.subject);
       if (data.message?.body) setBody(data.message.body);
+      trackEventClient({ eventCategory: "outreach", eventAction: "proposal_ai_generated", leadId: lead.id, channel: "email", metadata: { docType } });
     } catch {
       setSubject(`${docLabel} for ${lead.company}`);
       setBody(
@@ -64,10 +70,11 @@ export default function ProposalCreatorPopup({
   const handleSave = () => {
     if (!body.trim() || !subject.trim()) return;
     onSend({ subject, body, docType });
+    trackEventClient({ eventCategory: "outreach", eventAction: "proposal_saved_as_draft", leadId: lead.id, channel: "email", metadata: { docType } });
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={() => { trackEventClient({ eventCategory: "outreach", eventAction: "proposal_popup_closed", leadId: lead.id, channel: "email" }); onClose(); }}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 580 }}>
         {/* Header */}
         <div className="modal-header">
@@ -88,7 +95,7 @@ export default function ProposalCreatorPopup({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="btn-ghost"><X className="w-4 h-4" /></button>
+          <button onClick={() => { trackEventClient({ eventCategory: "outreach", eventAction: "proposal_popup_closed", leadId: lead.id, channel: "email" }); onClose(); }} className="btn-ghost"><X className="w-4 h-4" /></button>
         </div>
 
         {/* Body */}
@@ -104,7 +111,10 @@ export default function ProposalCreatorPopup({
                 return (
                   <button
                     key={dt.value}
-                    onClick={() => setDocType(dt.value)}
+                    onClick={() => {
+                      setDocType(dt.value);
+                      trackEventClient({ eventCategory: "outreach", eventAction: "proposal_doc_type_selected", leadId: lead.id, channel: "email", metadata: { docType: dt.value } });
+                    }}
                     style={{
                       padding: "8px 14px", borderRadius: 20,
                       background: selected ? "linear-gradient(135deg, #7c3aed, #a855f7)" : "white",
@@ -183,7 +193,7 @@ export default function ProposalCreatorPopup({
 
         {/* Footer */}
         <div className="modal-footer">
-          <button onClick={onClose} className="btn-secondary" style={{ fontSize: 13 }}>
+          <button onClick={() => { trackEventClient({ eventCategory: "outreach", eventAction: "proposal_popup_closed", leadId: lead.id, channel: "email" }); onClose(); }} className="btn-secondary" style={{ fontSize: 13 }}>
             Cancel
           </button>
           <button

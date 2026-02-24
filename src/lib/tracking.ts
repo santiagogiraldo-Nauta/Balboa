@@ -1,9 +1,14 @@
 /**
- * Universal Event Tracking — Phase 2.5
+ * Universal Event Tracking — Phase 2.5 + Phase 7 Full Instrumentation
  *
  * Central tracking utility for ALL platform actions.
  * Server-side: trackEvent()  — fire-and-forget Supabase insert
  * Client-side: trackEventClient() — fire-and-forget POST to /api/track
+ *
+ * PHILOSOPHY: Track EVERYTHING. Every click, every generation, every outcome.
+ * When we go live with Amplemarket, HubSpot, Aircall, LinkedIn — all that
+ * external data merges with these events to build the unbeatable playbook
+ * intelligence engine. The more data we have, the better our recommendations.
  */
 
 import { SupabaseClient } from "@supabase/supabase-js";
@@ -19,7 +24,9 @@ export type EventCategory =
   | "enablement"
   | "signal"
   | "navigation"
-  | "team";
+  | "team"
+  | "event"         // Event Command Center
+  | "communication"; // Communication Hub
 
 export type LeadAction =
   | "csv_imported"
@@ -38,7 +45,28 @@ export type OutreachAction =
   | "draft_created"
   | "draft_approved"
   | "draft_rejected"
-  | "content_suggestions_generated";
+  | "draft_expanded"
+  | "draft_reviewed"
+  | "content_suggestions_generated"
+  // Email popup
+  | "email_popup_opened"
+  | "email_popup_closed"
+  | "email_ai_generated"
+  | "email_sent_from_popup"
+  // LinkedIn popup
+  | "linkedin_popup_opened"
+  | "linkedin_popup_closed"
+  | "linkedin_ai_generated"
+  | "linkedin_copy_and_open"
+  | "linkedin_sales_nav_opened"
+  | "linkedin_profile_viewed"
+  | "linkedin_redirect_clicked"
+  // Proposal popup
+  | "proposal_popup_opened"
+  | "proposal_popup_closed"
+  | "proposal_doc_type_selected"
+  | "proposal_ai_generated"
+  | "proposal_saved_as_draft";
 
 export type DealAction =
   | "deal_viewed"
@@ -51,7 +79,19 @@ export type CallAction =
   | "call_outcome_detected"
   | "call_drafts_generated"
   | "call_script_generated"
-  | "click_to_call";
+  | "click_to_call"
+  // Cold Call Script component
+  | "call_dialer_clicked"
+  | "call_timer_started"
+  | "call_timer_paused"
+  | "call_timer_resumed"
+  | "call_timer_stopped"
+  | "call_outcome_selected"
+  | "call_outcome_saved"
+  | "call_script_requested"
+  | "call_script_regenerated"
+  | "call_script_section_copied"
+  | "call_script_tab_viewed";
 
 export type AnalysisAction =
   | "lead_analyzed"
@@ -59,19 +99,51 @@ export type AnalysisAction =
   | "pipeline_analyzed"
   | "research_query"
   | "deep_research"
-  | "lead_summarized";
+  | "lead_summarized"
+  // Deep Research Panel
+  | "deep_research_panel_opened"
+  | "deep_research_panel_closed"
+  | "deep_research_tab_clicked"
+  | "deep_research_tab_completed"
+  | "deep_research_all_tabs"
+  // Lead Summarizer
+  | "lead_summary_requested"
+  | "lead_summary_expanded"
+  | "lead_summary_collapsed";
 
 export type EnablementAction =
   | "video_prep_created"
   | "prep_kit_created"
   | "prep_kit_viewed"
   | "battle_card_created"
-  | "battle_card_viewed";
+  | "battle_card_viewed"
+  // Meeting Scheduler
+  | "meeting_scheduler_opened"
+  | "meeting_message_generated"
+  | "meeting_draft_saved";
 
 export type SignalAction =
   | "signal_received"
   | "signal_action_completed"
   | "signal_snoozed";
+
+export type EventCenterAction =
+  | "event_viewed"
+  | "event_selected"
+  | "event_tab_switched"
+  | "event_attendee_filtered"
+  | "event_attendee_sorted"
+  | "event_attendee_email_opened"
+  | "event_attendee_linkedin_opened"
+  | "event_attendee_navigated_to_lead"
+  | "event_outreach_plan_generated"
+  | "event_outreach_plan_requested";
+
+export type CommunicationAction =
+  | "communication_hub_viewed"
+  | "communication_channel_filtered"
+  | "communication_thread_expanded"
+  | "communication_thread_collapsed";
 
 export type NavigationAction =
   | "section_viewed"
@@ -89,6 +161,8 @@ export type EventAction =
   | AnalysisAction
   | EnablementAction
   | SignalAction
+  | EventCenterAction
+  | CommunicationAction
   | NavigationAction
   | TeamAction;
 

@@ -2,6 +2,7 @@
 
 import { Linkedin, ExternalLink } from "lucide-react";
 import type { Lead } from "@/lib/types";
+import { trackEventClient } from "@/lib/tracking";
 
 interface LinkedInRedirectButtonProps {
   lead: Lead;
@@ -13,6 +14,7 @@ export default function LinkedInRedirectButton({ lead, style }: LinkedInRedirect
   const hasUrl = !!lead.linkedinUrl;
 
   const handleClick = () => {
+    trackEventClient({ eventCategory: "outreach", eventAction: "linkedin_redirect_clicked", leadId: lead.id, channel: "linkedin", metadata: { hasLinkedInUrl: !!lead.linkedinUrl } });
     if (lead.linkedinUrl) {
       window.open(lead.linkedinUrl, "_blank");
     } else if (lead.firstName && lead.lastName) {
