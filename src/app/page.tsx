@@ -50,8 +50,17 @@ import WinLossIntelligence from "@/components/WinLossIntelligence";
 import MultiThreadingIntelligence from "@/components/MultiThreadingIntelligence";
 import SequenceBuilder from "@/components/SequenceBuilder";
 import NotificationCenter from "@/components/NotificationCenter";
+import DeepResearchPanel from "@/components/DeepResearchPanel";
+import LeadSummarizer from "@/components/LeadSummarizer";
+import CommunicationHub from "@/components/CommunicationHub";
+import EventCommandCenter from "@/components/EventCommandCenter";
+import ColdCallScript from "@/components/ColdCallScript";
+import VascoContextButton from "@/components/VascoContextButton";
 import { getClientConfig } from "@/lib/config-client";
 import { mockDeals, mockAccounts } from "@/lib/mock-phase2";
+import { mockEvents } from "@/lib/mock-events";
+import { mockCommunications } from "@/lib/mock-communications";
+import type { SalesEvent, CommunicationThread } from "@/lib/types";
 
 export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
@@ -90,6 +99,11 @@ export default function Dashboard() {
   const [showLinkedInPopup, setShowLinkedInPopup] = useState(false);
   const [showProposalPopup, setShowProposalPopup] = useState(false);
   const [popupPrefill, setPopupPrefill] = useState<{ subject?: string; body?: string; draftId?: string } | null>(null);
+  // Phase 6 state
+  const [vascoPrompt, setVascoPrompt] = useState<string | null>(null);
+  const [showDeepResearch, setShowDeepResearch] = useState(false);
+  const [events] = useState<SalesEvent[]>(mockEvents);
+  const [communications] = useState<Record<string, CommunicationThread[]>>(mockCommunications);
 
   const supabase = createClient();
   const { isSandbox } = getClientConfig();
@@ -933,6 +947,7 @@ export default function Dashboard() {
     threading: { title: "Multi-Threading", subtitle: "Track stakeholder engagement across accounts" },
     winloss: { title: "Win/Loss Intelligence", subtitle: "Analyze deal outcomes to improve your sales strategy" },
     notifications: { title: "Notifications", subtitle: "Stay on top of urgent signals and important updates" },
+    events: { title: "Event Command Center", subtitle: "Manage tradeshow and conference outreach with territory tracking" },
   };
 
   // Show loading spinner while checking auth
@@ -1073,6 +1088,16 @@ export default function Dashboard() {
             className={`sidebar-item ${sidebarSection === "notifications" ? "active" : ""}`}>
             <Bell className="w-5 h-5" />
             <span className="tooltip">Notifications</span>
+          </button>
+
+          {/* Divider */}
+          <div style={{ height: 1, background: "var(--balboa-border-light)", margin: "12px 8px" }} />
+
+          {/* Events */}
+          <button onClick={() => navigateTo("events")}
+            className={`sidebar-item ${sidebarSection === "events" ? "active" : ""}`}>
+            <Calendar className="w-5 h-5" />
+            <span className="tooltip">Events</span>
           </button>
         </nav>
       </div>
@@ -1312,6 +1337,18 @@ export default function Dashboard() {
                       </div>
                     </div>
 
+                    {/* ⭐ Lead Summarizer (Phase 6) */}
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <LeadSummarizer lead={selectedLead} language={contentLanguage} />
+                        <VascoContextButton
+                          prompt={`Give me a complete summary analysis of ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Include their engagement history, sentiment, and recommended next steps.`}
+                          tooltip="Ask Vasco about this lead's history"
+                          onClick={setVascoPrompt}
+                        />
+                      </div>
+                    </div>
+
                     {/* Key info — top 2 signals + expandable details */}
                     {selectedLead.icpScore?.signals && (
                       <div style={{ marginBottom: 20 }}>
@@ -1375,6 +1412,31 @@ export default function Dashboard() {
                       </div>
                     )}
 
+                    {/* 🔬 Deep Research Panel trigger (Phase 6) */}
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <button
+                          onClick={() => setShowDeepResearch(true)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            padding: "8px 14px", borderRadius: 8,
+                            background: "linear-gradient(135deg, rgba(30,42,94,0.04), rgba(59,91,219,0.08))",
+                            border: "1px solid rgba(59,91,219,0.15)",
+                            cursor: "pointer", fontSize: 12, fontWeight: 600,
+                            color: "var(--balboa-navy)", transition: "all 0.15s ease",
+                          }}
+                        >
+                          <Radar className="w-3.5 h-3.5" style={{ color: "var(--balboa-blue)" }} />
+                          Deep Research
+                        </button>
+                        <VascoContextButton
+                          prompt={`Do a deep research analysis on ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Cover their role, company overview, industry trends, competitive landscape, and the best approach for outreach.`}
+                          tooltip="Ask Vasco for deep research"
+                          onClick={setVascoPrompt}
+                        />
+                      </div>
+                    </div>
+
                     {/* Call Outcomes (if lead has recent calls) */}
                     {selectedLead.callLogs && selectedLead.callLogs.length > 0 && (
                       <div style={{ marginBottom: 20 }}>
@@ -1402,9 +1464,16 @@ export default function Dashboard() {
                     {/* Cross-Channel Activity Timeline — capped at 5 */}
                     {selectedLead.touchpointTimeline && selectedLead.touchpointTimeline.length > 0 && (
                       <div style={{ marginBottom: 20 }}>
-                        <h4 style={{ fontSize: 11, fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                          <Clock className="w-3.5 h-3.5" style={{ color: "var(--balboa-navy)" }} /> Activity Timeline
-                        </h4>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                          <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            <Clock className="w-3.5 h-3.5" style={{ color: "var(--balboa-navy)" }} /> Activity Timeline
+                          </h4>
+                          <VascoContextButton
+                            prompt={`Analyze the activity timeline for ${selectedLead.firstName} ${selectedLead.lastName}. What patterns do you see in their engagement? Are there gaps in communication? What should be the next touchpoint?`}
+                            tooltip="Ask Vasco about activity patterns"
+                            onClick={setVascoPrompt}
+                          />
+                        </div>
                         <div style={{ background: "var(--balboa-bg-alt)", borderRadius: 10, padding: 14, border: "1px solid var(--balboa-border-light)" }}>
                           <ActivityTimeline events={selectedLead.touchpointTimeline.slice(-5)} />
                           {selectedLead.touchpointTimeline.length > 5 && (
@@ -1470,9 +1539,16 @@ export default function Dashboard() {
 
                       return (
                         <div style={{ marginBottom: 20 }}>
-                          <h4 style={{ fontSize: 11, fontWeight: 700, marginBottom: 10, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                            <Zap className="w-3.5 h-3.5" style={{ color: "var(--balboa-orange)" }} /> Quick Actions
-                          </h4>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                            <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                              <Zap className="w-3.5 h-3.5" style={{ color: "var(--balboa-orange)" }} /> Quick Actions
+                            </h4>
+                            <VascoContextButton
+                              prompt={`What is the best next action for ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}? Consider their ICP score (${selectedLead.icpScore?.overall || 0}), status (${selectedLead.status}), and contact status (${selectedLead.contactStatus}). Recommend the optimal channel, timing, and message approach.`}
+                              tooltip="Ask Vasco for action recommendations"
+                              onClick={setVascoPrompt}
+                            />
+                          </div>
 
                           {/* Recommended action banner */}
                           <div style={{
@@ -1604,9 +1680,16 @@ export default function Dashboard() {
                     {/* 🧠 Lead Intelligence — AI-Powered Analysis */}
                     <div style={{ marginBottom: 20 }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                        <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                          <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--balboa-blue)" }} /> Lead Intelligence
-                        </h4>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--balboa-blue)" }} /> Lead Intelligence
+                          </h4>
+                          <VascoContextButton
+                            prompt={`Provide strategic intelligence on ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. What is the best channel, timing, and messaging approach? What are the expected outcomes based on their profile?`}
+                            tooltip="Ask Vasco for lead intelligence"
+                            onClick={setVascoPrompt}
+                          />
+                        </div>
                         <button
                           onClick={() => analyzeLead(selectedLead)}
                           disabled={analyzingLead}
@@ -1783,6 +1866,25 @@ export default function Dashboard() {
                       )}
                     </div>
 
+                    {/* 📞 Cold Call Script (Phase 6) */}
+                    <div style={{ marginBottom: 20 }}>
+                      <ColdCallScript
+                        lead={selectedLead}
+                        language={contentLanguage}
+                        onCallStarted={(lead) => {
+                          trackEventClient({
+                            eventCategory: "call",
+                            eventAction: "click_to_call",
+                            leadId: lead.id,
+                            channel: "call",
+                            leadTier: lead.icpScore?.tier,
+                          });
+                          setToastMessage(`Initiating call to ${lead.firstName}...`);
+                          setTimeout(() => setToastMessage(null), 3000);
+                        }}
+                      />
+                    </div>
+
                     {/* Battle Cards */}
                     <BattleCardPanel
                       lead={selectedLead}
@@ -1817,8 +1919,16 @@ export default function Dashboard() {
                       generatingAction={generatingAction}
                     />
 
-                    {/* Outreach Activity Summary */}
-                    <OutreachActivitySummary lead={selectedLead} />
+                    {/* 💬 Communication Hub (Phase 6) — replaces OutreachActivitySummary */}
+                    <CommunicationHub
+                      lead={selectedLead}
+                      communications={communications[selectedLead.id] || []}
+                    />
+
+                    {/* Outreach Activity Summary (fallback when no communication data) */}
+                    {(!communications[selectedLead.id] || communications[selectedLead.id].length === 0) && (
+                      <OutreachActivitySummary lead={selectedLead} />
+                    )}
                   </div>
                 )}
               </div>
@@ -2020,6 +2130,18 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* === EVENT COMMAND CENTER SECTION (Phase 6) === */}
+        {sidebarSection === "events" && (
+          <div className="p-6">
+            <EventCommandCenter
+              events={events}
+              leads={leads}
+              onNavigateToLead={handleNavigateToLead}
+              language={contentLanguage}
+            />
+          </div>
+        )}
+
       </div>
 
       {/* === ANALYZER PANEL (Phase 2) === */}
@@ -2159,7 +2281,16 @@ export default function Dashboard() {
         />
       )}
 
-      {/* AI Assistant (floating) */}
+      {/* Deep Research Panel Modal (Phase 6) */}
+      {showDeepResearch && selectedLead && (
+        <DeepResearchPanel
+          lead={selectedLead}
+          onClose={() => setShowDeepResearch(false)}
+          language={contentLanguage}
+        />
+      )}
+
+      {/* AI Assistant (floating) — Vasco with context button support */}
       <BalboaAssistant
         leads={leads}
         deals={typedDeals}
@@ -2169,6 +2300,8 @@ export default function Dashboard() {
         onNavigateToLead={handleNavigateToLead}
         onGenerateMessage={generateMessage}
         language={contentLanguage}
+        externalPrompt={vascoPrompt}
+        onExternalPromptHandled={() => setVascoPrompt(null)}
       />
 
       {/* Toast Notification */}

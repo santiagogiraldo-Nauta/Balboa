@@ -1,6 +1,6 @@
 "use client";
 
-import { Linkedin, Mail, Phone, Clock, StickyNote } from "lucide-react";
+import { Linkedin, Mail, Phone, Clock, StickyNote, MessageSquare, MessageCircle } from "lucide-react";
 import type { TouchpointEvent } from "@/lib/types";
 
 interface ActivityTimelineProps {
@@ -43,9 +43,63 @@ const eventTypeLabel = (type: string): string => {
     call_scheduled: "Call Scheduled",
     call_followup_sent: "Call Follow-up Sent",
     manual_note: "Note",
+    sms_sent: "SMS Sent",
+    sms_received: "SMS Received",
+    whatsapp_sent: "WhatsApp Sent",
+    whatsapp_received: "WhatsApp Received",
   };
   return labels[type] || type.replace(/_/g, " ");
 };
+
+function getTimelineDotClass(event: TouchpointEvent): string {
+  if (event.type === "manual_note") return "timeline-dot timeline-dot-note";
+  switch (event.channel) {
+    case "linkedin":
+      return "timeline-dot timeline-dot-linkedin";
+    case "call":
+      return "timeline-dot timeline-dot-call";
+    case "sms":
+      return "timeline-dot timeline-dot-sms";
+    case "whatsapp":
+      return "timeline-dot timeline-dot-whatsapp";
+    default:
+      return "timeline-dot timeline-dot-email";
+  }
+}
+
+function getChannelIcon(event: TouchpointEvent) {
+  if (event.type === "manual_note") {
+    return <StickyNote className="w-3 h-3" style={{ color: "#d97706" }} />;
+  }
+  switch (event.channel) {
+    case "linkedin":
+      return <Linkedin className="w-3 h-3" style={{ color: "#0077b5" }} />;
+    case "call":
+      return <Phone className="w-3 h-3" style={{ color: "#059669" }} />;
+    case "sms":
+      return <MessageSquare className="w-3 h-3" style={{ color: "#059669" }} />;
+    case "whatsapp":
+      return <MessageCircle className="w-3 h-3" style={{ color: "#25D366" }} />;
+    default:
+      return <Mail className="w-3 h-3" style={{ color: "#d97706" }} />;
+  }
+}
+
+function getChannelColor(event: TouchpointEvent): string {
+  if (event.type === "manual_note") return "#d97706";
+  switch (event.channel) {
+    case "linkedin":
+      return "#0077b5";
+    case "call":
+      return "#059669";
+    case "sms":
+      return "#059669";
+    case "whatsapp":
+      return "#25D366";
+    default:
+      return "#d97706";
+  }
+}
 
 export default function ActivityTimeline({ events, compact = false }: ActivityTimelineProps) {
   const sorted = [...events].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -62,21 +116,13 @@ export default function ActivityTimeline({ events, compact = false }: ActivityTi
     <div className="timeline">
       {sorted.map((event) => (
         <div key={event.id} className="timeline-item">
-          <div className={`timeline-dot ${event.type === "manual_note" ? "timeline-dot-note" : event.channel === "linkedin" ? "timeline-dot-linkedin" : event.channel === "call" ? "timeline-dot-call" : "timeline-dot-email"}`} />
+          <div className={getTimelineDotClass(event)} />
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-              {event.type === "manual_note" ? (
-                <StickyNote className="w-3 h-3" style={{ color: "#d97706" }} />
-              ) : event.channel === "linkedin" ? (
-                <Linkedin className="w-3 h-3" style={{ color: "#0077b5" }} />
-              ) : event.channel === "call" ? (
-                <Phone className="w-3 h-3" style={{ color: "#059669" }} />
-              ) : (
-                <Mail className="w-3 h-3" style={{ color: "#d97706" }} />
-              )}
+              {getChannelIcon(event)}
               <span style={{
                 fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
-                color: event.type === "manual_note" ? "#d97706" : event.channel === "linkedin" ? "#0077b5" : event.channel === "call" ? "#059669" : "#d97706",
+                color: getChannelColor(event),
               }}>
                 {eventTypeLabel(event.type)}
               </span>

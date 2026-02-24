@@ -16,6 +16,8 @@ const MESSAGE_TYPE_INSTRUCTIONS: Record<string, string> = {
   email_initial: "Write an initial cold email. Subject line that gets opened, body that provides value and earns a reply. 150-250 words max.",
   call_followup: "Write a follow-up email after a phone call. Reference what was discussed, propose next steps.",
   meeting_request: "Write a meeting request that demonstrates you understand their challenges.",
+  sms_outreach: "Write a short SMS message (<160 chars). Direct, conversational. Include a clear CTA.",
+  whatsapp_outreach: "Write a WhatsApp message (<500 chars). Professional but friendly. Can include emojis. Clear next step.",
 };
 
 export async function POST(req: NextRequest) {
@@ -97,7 +99,7 @@ You MUST respond with ONLY valid JSON in this exact format (no markdown, no code
       };
     }
 
-    const generatedChannel = channel || (messageType.startsWith("email") ? "email" : "linkedin");
+    const generatedChannel = channel || (messageType.startsWith("email") ? "email" : messageType.startsWith("sms") ? "sms" : messageType.startsWith("whatsapp") ? "whatsapp" : "linkedin");
 
     // Track event (fire-and-forget)
     if (user && supabase) {
@@ -105,7 +107,7 @@ You MUST respond with ONLY valid JSON in this exact format (no markdown, no code
         eventCategory: "outreach",
         eventAction: "message_generated",
         leadId: lead?.id,
-        channel: generatedChannel as "email" | "linkedin",
+        channel: generatedChannel as "email" | "linkedin" | "sms" | "whatsapp",
         leadTier: lead?.icpScore?.tier,
         templateType: messageType,
         source: "api",

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, Mail, Linkedin, Phone, ChevronDown, ChevronUp, Clock } from "lucide-react";
-import type { Lead } from "@/lib/types";
+import { Activity, Mail, Linkedin, Phone, ChevronDown, ChevronUp, Clock, MessageCircle, Smartphone } from "lucide-react";
+import type { Lead, OutreachChannel } from "@/lib/types";
 
 interface OutreachActivitySummaryProps {
   lead: Lead;
@@ -11,7 +11,7 @@ interface OutreachActivitySummaryProps {
 interface TimelineEntry {
   id: string;
   date: string;
-  channel: "email" | "linkedin" | "call";
+  channel: OutreachChannel;
   type: string;
   description: string;
 }
@@ -76,10 +76,12 @@ function mergeTimeline(lead: Lead): TimelineEntry[] {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
-const CHANNEL_CONFIG = {
+const CHANNEL_CONFIG: Record<string, { icon: typeof Mail; color: string; bg: string; label: string }> = {
   email: { icon: Mail, color: "#059669", bg: "#d1fae5", label: "Email" },
   linkedin: { icon: Linkedin, color: "#0077b5", bg: "#e0f2fe", label: "LinkedIn" },
   call: { icon: Phone, color: "#7c3aed", bg: "#ede9fe", label: "Call" },
+  sms: { icon: Smartphone, color: "#059669", bg: "#d1fae5", label: "SMS" },
+  whatsapp: { icon: MessageCircle, color: "#25D366", bg: "#dcfce7", label: "WhatsApp" },
 };
 
 function formatRelativeDate(dateStr: string): string {

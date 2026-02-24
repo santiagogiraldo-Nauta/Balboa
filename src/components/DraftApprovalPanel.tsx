@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare, Copy, CheckCircle, XCircle, Send, Linkedin, AtSign, ChevronDown, ChevronUp, Mail } from "lucide-react";
+import { MessageSquare, MessageCircle, Copy, CheckCircle, XCircle, Send, Linkedin, AtSign, ChevronDown, ChevronUp, Mail } from "lucide-react";
 import type { Lead, DraftMessage } from "@/lib/types";
 
 interface DraftApprovalPanelProps {
@@ -11,10 +11,14 @@ interface DraftApprovalPanelProps {
   onReject: (draftId: string) => void;
   onSendViaEmail: (draft: DraftMessage) => void;
   onSendViaLinkedIn: (draft: DraftMessage) => void;
+  onSendViaSms?: (draft: DraftMessage) => void;
+  onSendViaWhatsApp?: (draft: DraftMessage) => void;
   onCopy: (text: string) => void;
   onGenerateLinkedIn?: () => void;
   onGenerateEmail?: () => void;
   onGenerateProposal?: () => void;
+  onGenerateSms?: () => void;
+  onGenerateWhatsApp?: () => void;
   generatingAction?: string | null;
 }
 
@@ -25,6 +29,51 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
   sent: { bg: "#dbeafe", text: "#1e40af", border: "#bfdbfe" },
 };
 
+function getChannelIcon(channel: string) {
+  switch (channel) {
+    case "linkedin":
+      return <Linkedin className="w-3 h-3" style={{ color: "#0077b5" }} />;
+    case "email":
+      return <AtSign className="w-3 h-3" style={{ color: "#7c3aed" }} />;
+    case "sms":
+      return <MessageSquare className="w-3 h-3" style={{ color: "#059669" }} />;
+    case "whatsapp":
+      return <MessageCircle className="w-3 h-3" style={{ color: "#25D366" }} />;
+    default:
+      return <AtSign className="w-3 h-3" style={{ color: "#7c3aed" }} />;
+  }
+}
+
+function getChannelIconBg(channel: string): string {
+  switch (channel) {
+    case "linkedin":
+      return "#e0f2fe";
+    case "email":
+      return "#ede9fe";
+    case "sms":
+      return "#d1fae5";
+    case "whatsapp":
+      return "#dcfce7";
+    default:
+      return "#ede9fe";
+  }
+}
+
+function getChannelPillClass(channel: string): string {
+  switch (channel) {
+    case "linkedin":
+      return "channel-pill channel-linkedin";
+    case "email":
+      return "channel-pill channel-email";
+    case "sms":
+      return "channel-pill channel-sms";
+    case "whatsapp":
+      return "channel-pill channel-whatsapp";
+    default:
+      return "channel-pill channel-email";
+  }
+}
+
 export default function DraftApprovalPanel({
   drafts,
   lead,
@@ -32,10 +81,14 @@ export default function DraftApprovalPanel({
   onReject,
   onSendViaEmail,
   onSendViaLinkedIn,
+  onSendViaSms,
+  onSendViaWhatsApp,
   onCopy,
   onGenerateLinkedIn,
   onGenerateEmail,
   onGenerateProposal,
+  onGenerateSms,
+  onGenerateWhatsApp,
   generatingAction,
 }: DraftApprovalPanelProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -68,7 +121,7 @@ export default function DraftApprovalPanel({
             </span>
           )}
         </h4>
-        <div style={{ display: "flex", gap: 2 }}>
+        <div style={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
           {onGenerateLinkedIn && (
             <button onClick={onGenerateLinkedIn} disabled={!!generatingAction}
               className="btn-ghost" style={{ fontSize: 10, opacity: generatingAction ? 0.5 : 1 }}>
@@ -85,6 +138,18 @@ export default function DraftApprovalPanel({
             <button onClick={onGenerateProposal} disabled={!!generatingAction}
               className="btn-ghost" style={{ fontSize: 10, opacity: generatingAction ? 0.5 : 1 }}>
               + Proposal
+            </button>
+          )}
+          {onGenerateSms && (
+            <button onClick={onGenerateSms} disabled={!!generatingAction}
+              className="btn-ghost" style={{ fontSize: 10, opacity: generatingAction ? 0.5 : 1 }}>
+              + SMS
+            </button>
+          )}
+          {onGenerateWhatsApp && (
+            <button onClick={onGenerateWhatsApp} disabled={!!generatingAction}
+              className="btn-ghost" style={{ fontSize: 10, opacity: generatingAction ? 0.5 : 1 }}>
+              + WhatsApp
             </button>
           )}
         </div>
@@ -109,7 +174,7 @@ export default function DraftApprovalPanel({
                 border: "1px solid var(--balboa-border-light)",
                 transition: "all 0.2s ease",
               }}>
-                {/* Collapsed header — always visible */}
+                {/* Collapsed header -- always visible */}
                 <button
                   onClick={() => toggleExpand(d.id)}
                   style={{
@@ -122,11 +187,9 @@ export default function DraftApprovalPanel({
                   <span style={{
                     display: "flex", alignItems: "center", justifyContent: "center",
                     width: 24, height: 24, borderRadius: 6, flexShrink: 0,
-                    background: d.channel === "linkedin" ? "#e0f2fe" : "#ede9fe",
+                    background: getChannelIconBg(d.channel),
                   }}>
-                    {d.channel === "linkedin"
-                      ? <Linkedin className="w-3 h-3" style={{ color: "#0077b5" }} />
-                      : <AtSign className="w-3 h-3" style={{ color: "#7c3aed" }} />}
+                    {getChannelIcon(d.channel)}
                   </span>
 
                   {/* Preview text */}
@@ -161,8 +224,8 @@ export default function DraftApprovalPanel({
                       <span style={{ fontSize: 10, fontWeight: 700, color: "var(--balboa-navy)", letterSpacing: "0.03em" }}>
                         {d.type?.replace(/_/g, " ").toUpperCase()}
                       </span>
-                      <span className={`channel-pill ${d.channel === "linkedin" ? "channel-linkedin" : "channel-email"}`}>
-                        {d.channel === "linkedin" ? <Linkedin className="w-3 h-3" /> : <AtSign className="w-3 h-3" />}
+                      <span className={getChannelPillClass(d.channel)}>
+                        {getChannelIcon(d.channel)}
                         {d.channel}
                       </span>
                     </div>
@@ -210,15 +273,28 @@ export default function DraftApprovalPanel({
 
                       {d.status === "approved" && (
                         <>
-                          {d.channel === "linkedin" ? (
+                          {d.channel === "linkedin" && (
                             <button onClick={() => onSendViaLinkedIn(d)}
                               className="btn-ghost" style={{ fontSize: 11, color: "#0077b5", fontWeight: 700 }}>
                               <Send className="w-3 h-3" /> Send via LinkedIn
                             </button>
-                          ) : (
+                          )}
+                          {d.channel === "email" && (
                             <button onClick={() => onSendViaEmail(d)}
                               className="btn-ghost" style={{ fontSize: 11, color: "var(--balboa-green)", fontWeight: 700 }}>
                               <Mail className="w-3 h-3" /> Send Email
+                            </button>
+                          )}
+                          {d.channel === "sms" && onSendViaSms && (
+                            <button onClick={() => onSendViaSms(d)}
+                              className="btn-ghost" style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>
+                              <MessageSquare className="w-3 h-3" /> Send SMS
+                            </button>
+                          )}
+                          {d.channel === "whatsapp" && onSendViaWhatsApp && (
+                            <button onClick={() => onSendViaWhatsApp(d)}
+                              className="btn-ghost" style={{ fontSize: 11, color: "#25D366", fontWeight: 700 }}>
+                              <MessageCircle className="w-3 h-3" /> Send WhatsApp
                             </button>
                           )}
                           {/* Secondary: Copy & Open */}

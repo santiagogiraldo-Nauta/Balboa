@@ -1,5 +1,5 @@
 // Air Call integration adapter stub
-// Future: call logging, auto-detection, call analytics
+// Future: call logging, auto-detection, call analytics, SMS, WhatsApp, click-to-call
 
 import { config } from "../config";
 import type { IntegrationAdapter, IntegrationStatus } from "./types";
@@ -13,6 +13,11 @@ class AirCallAdapter implements IntegrationAdapter {
     "call_analytics",
     "voicemail_transcription",
     "call_recording",
+    "sms_send",
+    "sms_receive",
+    "whatsapp_send",
+    "whatsapp_receive",
+    "click_to_call",
   ];
 
   async isConnected(): Promise<boolean> {
@@ -37,6 +42,49 @@ class AirCallAdapter implements IntegrationAdapter {
     }
     // Future: test Air Call API connection
     return { success: false, error: "Air Call integration not yet implemented" };
+  }
+
+  // === OUTREACH ADAPTER METHODS ===
+
+  async sendMessage(params: {
+    channel: "sms" | "whatsapp" | "call";
+    to: string;
+    body: string;
+    leadId?: string;
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    const connected = await this.isConnected();
+    if (!connected) {
+      return { success: false, error: "Air Call not connected. Configure API key." };
+    }
+
+    if (config.isSandbox) {
+      console.log(`[Aircall Sandbox] Would send ${params.channel} to ${params.to}: ${params.body.substring(0, 50)}...`);
+      return { success: true, messageId: `sandbox-${Date.now()}` };
+    }
+
+    // Future: actual API calls
+    // POST /v1/messages for SMS
+    // POST /v1/whatsapp/messages for WhatsApp
+    return { success: false, error: `${params.channel} sending not yet implemented` };
+  }
+
+  async initiateCall(params: {
+    phoneNumber: string;
+    leadId?: string;
+    userId?: string;
+  }): Promise<{ success: boolean; callId?: string; error?: string }> {
+    const connected = await this.isConnected();
+    if (!connected) {
+      return { success: false, error: "Air Call not connected. Configure API key." };
+    }
+
+    if (config.isSandbox) {
+      console.log(`[Aircall Sandbox] Would initiate call to ${params.phoneNumber}`);
+      return { success: true, callId: `sandbox-call-${Date.now()}` };
+    }
+
+    // Future: POST /v1/calls to initiate call via Aircall dialer
+    return { success: false, error: "Click-to-call not yet implemented" };
   }
 }
 

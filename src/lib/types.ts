@@ -68,7 +68,7 @@ export interface ChannelPresence {
 
 export interface TouchpointEvent {
   id: string;
-  channel: "linkedin" | "email" | "call";
+  channel: OutreachChannel;
   type: string;
   description: string;
   date: string;
@@ -250,10 +250,13 @@ export interface WeeklyMetric {
   replies: number;
 }
 
+// === OUTREACH CHANNEL (expanded for SMS/WhatsApp) ===
+export type OutreachChannel = "linkedin" | "email" | "call" | "sms" | "whatsapp";
+
 export interface DraftMessage {
   id: string;
-  type: "connection_followup" | "cold_outreach" | "warm_intro" | "engagement_reply" | "value_share" | "email_followup" | "email_initial" | "call_followup" | "meeting_request";
-  channel: "linkedin" | "email" | "call";
+  type: "connection_followup" | "cold_outreach" | "warm_intro" | "engagement_reply" | "value_share" | "email_followup" | "email_initial" | "call_followup" | "meeting_request" | "sms_outreach" | "whatsapp_outreach";
+  channel: OutreachChannel;
   subject: string;
   body: string;
   status: "draft" | "approved" | "sent" | "rejected";
@@ -265,7 +268,7 @@ export interface DraftMessage {
 export interface EngagementAction {
   id: string;
   type: "like_post" | "comment_post" | "share_content" | "send_message" | "follow_up" | "email_follow_up" | "reply_email";
-  channel: "linkedin" | "email" | "call";
+  channel: OutreachChannel;
   description: string;
   suggestedContent?: string;
   priority: "high" | "medium" | "low";
@@ -303,7 +306,7 @@ export interface DashboardStats {
   weeklyEngagement: number;
 }
 
-export type SidebarSection = "today" | "leads" | "followups" | "prospecting" | "playbook" | "outreach" | "deals" | "queue" | "linkedin-privacy" | "signals" | "sequences" | "journey" | "threading" | "winloss" | "notifications";
+export type SidebarSection = "today" | "leads" | "followups" | "prospecting" | "playbook" | "outreach" | "deals" | "queue" | "linkedin-privacy" | "signals" | "sequences" | "journey" | "threading" | "winloss" | "notifications" | "events";
 
 // === LINKEDIN OUTREACH TRACKER ===
 export type LinkedInOutreachStage =
@@ -838,4 +841,180 @@ export interface AccountThread {
   economicBuyerIdentified: boolean;
   riskLevel: "low" | "medium" | "high";
   recommendation: string;
+}
+
+// ============================================================
+// PHASE 6: MEGA-BUILD TYPES
+// ============================================================
+
+// === DEEP RESEARCH ===
+export interface DeepResearchResult {
+  id: string;
+  leadId: string;
+  generatedAt: string;
+  person: {
+    summary: string;
+    careerHistory: string[];
+    recentActivity: string[];
+    communicationStyle: string;
+    motivations: string[];
+    decisionDrivers: string[];
+  };
+  company: {
+    overview: string;
+    financials: string;
+    recentNews: string[];
+    strategicInitiatives: string[];
+    painPoints: string[];
+    techStack: string[];
+    competitors: string[];
+    orgStructure: string;
+  };
+  industry: {
+    trends: string[];
+    challenges: string[];
+    regulations: string[];
+    marketSize: string;
+    growthRate: string;
+  };
+  competition: {
+    mainCompetitors: Array<{ name: string; strengths: string[]; weaknesses: string[] }>;
+    competitiveAdvantage: string;
+    switchingCosts: string;
+  };
+  approach: {
+    recommendedAngle: string;
+    keyTalkingPoints: string[];
+    objectionHandling: Array<{ objection: string; response: string }>;
+    idealTiming: string;
+    suggestedChannel: OutreachChannel;
+  };
+}
+
+// === LEAD SUMMARY ===
+export interface LeadSummary {
+  id: string;
+  leadId: string;
+  generatedAt: string;
+  executiveSummary: string;
+  sentimentTimeline: Array<{
+    date: string;
+    sentiment: "positive" | "neutral" | "negative";
+    reason: string;
+  }>;
+  keyMilestones: string[];
+  totalTouchpoints: number;
+  totalEmails: number;
+  totalLinkedIn: number;
+  totalCalls: number;
+  totalSms: number;
+  totalWhatsApp: number;
+  responseRate: number;
+  avgResponseTime: string;
+  callRecordingHighlights: string[];
+  nextRecommendedAction: string;
+  dealProbability: number;
+  riskFactors: string[];
+}
+
+// === COMMUNICATION HISTORY ===
+export interface CommunicationMessage {
+  id: string;
+  leadId: string;
+  channel: OutreachChannel;
+  direction: "inbound" | "outbound";
+  subject?: string;
+  body: string;
+  date: string;
+  status: "sent" | "delivered" | "read" | "replied" | "bounced" | "failed";
+  threadId?: string;
+  sender: string;
+  attachments?: string[];
+}
+
+export interface CommunicationThread {
+  id: string;
+  leadId: string;
+  channel: OutreachChannel;
+  subject?: string;
+  messages: CommunicationMessage[];
+  lastMessageDate: string;
+  unreadCount: number;
+}
+
+// === EVENT COMMAND CENTER ===
+export interface SalesEvent {
+  id: string;
+  name: string;
+  date: string;
+  endDate?: string;
+  location: string;
+  type: "conference" | "tradeshow" | "webinar" | "meetup" | "dinner" | "workshop";
+  status: "upcoming" | "in_progress" | "completed";
+  description: string;
+  website?: string;
+  attendees: EventAttendee[];
+  territories: string[];
+  outreachPlan?: EventOutreachPlan;
+  teamProgress: EventTeamProgress;
+}
+
+export interface EventAttendee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  company: string;
+  position: string;
+  email?: string;
+  linkedinUrl?: string;
+  territory: string;
+  icpScore?: number;
+  tier?: "hot" | "warm" | "cold";
+  outreachStatus: "not_started" | "scheduled" | "contacted" | "meeting_booked" | "no_show";
+  assignedTo?: string;
+  notes?: string;
+}
+
+export interface EventOutreachPlan {
+  id: string;
+  eventId: string;
+  preEventSequence: Array<{ step: number; channel: OutreachChannel; template: string; timing: string }>;
+  atEventTasks: string[];
+  postEventSequence: Array<{ step: number; channel: OutreachChannel; template: string; timing: string }>;
+  goals: { meetingsTarget: number; leadsTarget: number; connectionsTarget: number };
+}
+
+export interface EventTeamProgress {
+  totalAttendees: number;
+  contacted: number;
+  meetingsBooked: number;
+  noShows: number;
+  byTerritory: Array<{ territory: string; total: number; contacted: number; meetings: number }>;
+}
+
+// === COLD CALL SCRIPTS ===
+export interface ColdCallScript {
+  id: string;
+  leadId: string;
+  generatedAt: string;
+  opener: string;
+  valueProposition: string;
+  talkingPoints: string[];
+  questions: string[];
+  objectionHandlers: Array<{ objection: string; response: string }>;
+  closeAttempt: string;
+  voicemailScript: string;
+  gatekeeperScript: string;
+  callDuration?: number;
+  callNotes?: string;
+  outcome?: "connected" | "voicemail" | "gatekeeper" | "no_answer" | "callback_scheduled";
+}
+
+// === VASCO CONTEXT BUTTON ===
+export interface VascoContextPrompt {
+  prompt: string;
+  context?: string;
+  section?: string;
+  leadId?: string;
+  dealId?: string;
 }

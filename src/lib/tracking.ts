@@ -49,13 +49,17 @@ export type DealAction =
 export type CallAction =
   | "call_logged"
   | "call_outcome_detected"
-  | "call_drafts_generated";
+  | "call_drafts_generated"
+  | "call_script_generated"
+  | "click_to_call";
 
 export type AnalysisAction =
   | "lead_analyzed"
   | "deal_analyzed"
   | "pipeline_analyzed"
-  | "research_query";
+  | "research_query"
+  | "deep_research"
+  | "lead_summarized";
 
 export type EnablementAction =
   | "video_prep_created"
@@ -71,7 +75,8 @@ export type SignalAction =
 
 export type NavigationAction =
   | "section_viewed"
-  | "filter_changed";
+  | "filter_changed"
+  | "vasco_context_opened";
 
 export type TeamAction =
   | "ae_performance_viewed";
@@ -95,7 +100,7 @@ export interface TrackEventParams {
   leadId?: string;
   dealId?: string;
   accountId?: string;
-  channel?: "email" | "linkedin" | "call";
+  channel?: "email" | "linkedin" | "call" | "sms" | "whatsapp";
   leadTier?: string;
   leadIndustry?: string;
   leadPosition?: string;

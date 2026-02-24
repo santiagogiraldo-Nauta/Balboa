@@ -22,6 +22,10 @@ interface BalboaAssistantProps {
   onNavigateToLead: (leadId: string) => void;
   onGenerateMessage: (lead: Lead, type: string, channel?: "email" | "linkedin") => void;
   language: SupportedLanguage;
+  /** External prompt from VascoContextButton — auto-opens chat and asks */
+  externalPrompt?: string | null;
+  /** Callback to clear external prompt after handling */
+  onExternalPromptHandled?: () => void;
 }
 
 const SUGGESTED_PROMPTS = [
@@ -97,6 +101,8 @@ export default function BalboaAssistant({
   currentSection,
   onNavigateToLead,
   onGenerateMessage,
+  externalPrompt,
+  onExternalPromptHandled,
 }: BalboaAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
@@ -114,6 +120,20 @@ export default function BalboaAssistant({
       inputRef.current.focus();
     }
   }, [isOpen]);
+
+  // Handle external prompt from VascoContextButton
+  useEffect(() => {
+    if (externalPrompt && !isThinking) {
+      setIsOpen(true);
+      // Small delay to let the panel open before sending
+      const timer = setTimeout(() => {
+        sendMessage(externalPrompt);
+        onExternalPromptHandled?.();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalPrompt]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isThinking) return;
