@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { NAUTA_ICP_CONTEXT } from "@/lib/nauta-context";
+import { BALBOA_ICP_CONTEXT } from "@/lib/balboa-context";
+import { getAuthUser } from "@/lib/supabase/auth-check";
+import { trackEvent } from "@/lib/tracking";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
+    const { user, supabase, error: authError } = await getAuthUser();
+    if (authError) return authError;
+
     const { query, type } = await req.json();
 
-    let prompt = NAUTA_ICP_CONTEXT + "\n\n";
+    let prompt = BALBOA_ICP_CONTEXT + "\n\n";
 
     if (type === "company_research") {
       prompt += `Research this company as a potential Nauta prospect. Based on what you know, provide:
@@ -66,6 +71,16 @@ Provide actionable insights, not generic advice. Be specific to Nauta's product 
       parsed = JSON.parse(cleaned);
     } catch {
       parsed = { response: text };
+    }
+
+    // Track research event (fire-and-forget)
+    if (user && supabase) {
+      trackEvent(supabase, user.id, {
+        eventCategory: "analysis",
+        eventAction: "research_query",
+        metadata: { queryType: type, queryLength: query?.length },
+        source: "api",
+      });
     }
 
     return NextResponse.json({ result: parsed });

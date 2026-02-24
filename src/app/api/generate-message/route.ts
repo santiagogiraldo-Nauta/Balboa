@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { MESSAGE_GENERATION_PROMPT } from "@/lib/nauta-context";
+import { MESSAGE_GENERATION_PROMPT, LANGUAGE_MODIFIERS } from "@/lib/balboa-context";
+import { getAuthUser } from "@/lib/supabase/auth-check";
+import { trackEvent } from "@/lib/tracking";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
-    const { lead, messageType, context } = await req.json();
+    const { user, supabase, error: authError } = await getAuthUser();
+    if (authError) return authError;
+
+    const { lead, messageType, context, language, channel } = await req.json();
+
+    const langModifier = LANGUAGE_MODIFIERS[language as keyof typeof LANGUAGE_MODIFIERS] || "";
 
     const leadInfo = `
 Name: ${lead.firstName} ${lead.lastName}
@@ -25,7 +32,7 @@ Additional Context: ${context || "None"}
       messages: [{
         role: "user",
         content: MESSAGE_GENERATION_PROMPT + leadInfo + `
-
+${langModifier ? `\nLANGUAGE INSTRUCTION: ${langModifier}\n` : ""}
 Generate a ${messageType} message. Return ONLY valid JSON:
 {
   "type": "${messageType}",
@@ -40,10 +47,26 @@ Generate a ${messageType} message. Return ONLY valid JSON:
     const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     const parsed = JSON.parse(cleaned);
 
+    const generatedChannel = channel || (messageType.startsWith("email") ? "email" : "linkedin");
+
+    // Track event (fire-and-forget)
+    if (user && supabase) {
+      trackEvent(supabase, user.id, {
+        eventCategory: "outreach",
+        eventAction: "message_generated",
+        leadId: lead?.id,
+        channel: generatedChannel as "email" | "linkedin",
+        leadTier: lead?.icpScore?.tier,
+        templateType: messageType,
+        source: "api",
+      });
+    }
+
     return NextResponse.json({
       message: {
         id: `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         ...parsed,
+        channel: generatedChannel,
         status: "draft",
         createdAt: new Date().toISOString(),
       }
