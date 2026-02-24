@@ -1321,6 +1321,11 @@ export default function Dashboard() {
                     {/* Score + Pipeline merged row */}
                     <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20, padding: "14px 16px", background: "var(--balboa-bg-alt)", borderRadius: 12, border: "1px solid var(--balboa-border-light)" }}>
                       <ScoreRing score={selectedLead.icpScore?.overall || 0} size={48} />
+                      <VascoContextButton
+                        prompt={`Explain the ICP score breakdown for ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Their overall score is ${selectedLead.icpScore?.overall || 0} (tier: ${selectedLead.icpScore?.tier || "unknown"}). What does this score mean for prioritization? What factors are driving it up or down?`}
+                        tooltip="Ask Vasco about this ICP score"
+                        onClick={setVascoPrompt}
+                      />
                       <div style={{ display: "flex", gap: 5, flexWrap: "wrap", flex: 1 }}>
                         {(["new", "researched", "engaged", "opportunity", "nurture"] as const).map((s) => (
                           <button key={s} onClick={() => updateLeadStatus(selectedLead.id, s)}
@@ -1352,6 +1357,16 @@ export default function Dashboard() {
                     {/* Key info — top 2 signals + expandable details */}
                     {selectedLead.icpScore?.signals && (
                       <div style={{ marginBottom: 20 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                          <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            Key Signals
+                          </h4>
+                          <VascoContextButton
+                            prompt={`Analyze the key signals and company intelligence for ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Signals: ${selectedLead.icpScore?.signals?.join(", ") || "none"}. Company: ${selectedLead.companyIntel?.industry || "unknown"} industry, ${selectedLead.companyIntel?.employeeCount || "unknown"} employees, revenue ${selectedLead.companyIntel?.estimatedRevenue || "unknown"}. What do these signals tell us about timing and approach?`}
+                            tooltip="Ask Vasco about these signals"
+                            onClick={setVascoPrompt}
+                          />
+                        </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           {selectedLead.icpScore.signals.slice(0, 2).map((s, i) => (
                             <div key={i} style={{ fontSize: 12, display: "flex", alignItems: "flex-start", gap: 8, color: "var(--balboa-text-secondary)", lineHeight: 1.4 }}>
@@ -1440,9 +1455,16 @@ export default function Dashboard() {
                     {/* Call Outcomes (if lead has recent calls) */}
                     {selectedLead.callLogs && selectedLead.callLogs.length > 0 && (
                       <div style={{ marginBottom: 20 }}>
-                        <h4 style={{ fontSize: 11, fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                          <Phone className="w-3.5 h-3.5" style={{ color: "#059669" }} /> Call Outcomes
-                        </h4>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                          <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            <Phone className="w-3.5 h-3.5" style={{ color: "#059669" }} /> Call Outcomes
+                          </h4>
+                          <VascoContextButton
+                            prompt={`Analyze the call outcomes for ${selectedLead.firstName} ${selectedLead.lastName}. They have ${selectedLead.callLogs?.length || 0} call(s) logged. What patterns do you see? What should the next call strategy be? Any follow-up actions from the call results?`}
+                            tooltip="Ask Vasco about call outcomes"
+                            onClick={setVascoPrompt}
+                          />
+                        </div>
                         {selectedLead.callLogs.slice(-1).map(call => (
                           <div key={call.id} style={{ borderRadius: 10, padding: 12, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
                             <div style={{ fontSize: 11, marginBottom: 8, color: "var(--balboa-text-muted)", fontWeight: 500 }}>
@@ -1488,9 +1510,16 @@ export default function Dashboard() {
 
                     {/* Quick Note */}
                     <div style={{ marginBottom: 20 }}>
-                      <h4 style={{ fontSize: 11, fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                        <StickyNote className="w-3.5 h-3.5" style={{ color: "#d97706" }} /> Quick Note
-                      </h4>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                        <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                          <StickyNote className="w-3.5 h-3.5" style={{ color: "#d97706" }} /> Quick Note
+                        </h4>
+                        <VascoContextButton
+                          prompt={`Review the notes for ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Notes: ${selectedLead.notes || "none yet"}. What insights can you draw from these notes? What should I note down next?`}
+                          tooltip="Ask Vasco about notes"
+                          onClick={setVascoPrompt}
+                        />
+                      </div>
                       <div style={{ display: "flex", gap: 8 }}>
                         <input
                           type="text"
@@ -1868,6 +1897,16 @@ export default function Dashboard() {
 
                     {/* 📞 Cold Call Script (Phase 6) */}
                     <div style={{ marginBottom: 20 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                        <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                          <Phone className="w-3.5 h-3.5" style={{ color: "#7c3aed" }} /> Cold Call Script
+                        </h4>
+                        <VascoContextButton
+                          prompt={`Help me prepare for a cold call with ${selectedLead.firstName} ${selectedLead.lastName}, ${selectedLead.position} at ${selectedLead.company}. Their ICP score is ${selectedLead.icpScore?.overall || 0} (${selectedLead.icpScore?.tier || "unknown"}). Industry: ${selectedLead.companyIntel?.industry || "unknown"}. What's the best opener? What objections should I expect? What value props should I lead with?`}
+                          tooltip="Ask Vasco for call prep"
+                          onClick={setVascoPrompt}
+                        />
+                      </div>
                       <ColdCallScript
                         lead={selectedLead}
                         language={contentLanguage}
@@ -1886,6 +1925,16 @@ export default function Dashboard() {
                     </div>
 
                     {/* Battle Cards */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                        🛡️ Battle Cards
+                      </h4>
+                      <VascoContextButton
+                        prompt={`Generate competitive intelligence for selling to ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company} (${selectedLead.companyIntel?.industry || "unknown"} industry). Who are the likely competitors they're evaluating? What are our key differentiators? Give me talking points to win against each competitor.`}
+                        tooltip="Ask Vasco for competitive intel"
+                        onClick={setVascoPrompt}
+                      />
+                    </div>
                     <BattleCardPanel
                       lead={selectedLead}
                       cards={selectedLead.battleCards || []}
@@ -1896,7 +1945,14 @@ export default function Dashboard() {
                     <CrossChannelWarning lead={selectedLead} currentChannel="linkedin" />
 
                     {/* Draft Messages — DraftApprovalPanel */}
-                    <div style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <VascoContextButton
+                          prompt={`Review all my draft messages for ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. I have ${selectedLead.draftMessages?.length || 0} draft(s). Analyze the messaging quality, suggest improvements, and tell me which draft should be sent first and why. Consider the lead's ICP tier (${selectedLead.icpScore?.tier || "unknown"}) and status (${selectedLead.status}).`}
+                          tooltip="Ask Vasco to review drafts"
+                          onClick={setVascoPrompt}
+                        />
+                      </div>
                       <LanguageSelector value={contentLanguage} onChange={setContentLanguage} />
                     </div>
                     <DraftApprovalPanel
@@ -1920,6 +1976,16 @@ export default function Dashboard() {
                     />
 
                     {/* 💬 Communication Hub (Phase 6) — replaces OutreachActivitySummary */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                        💬 Communication History
+                      </h4>
+                      <VascoContextButton
+                        prompt={`Analyze the full communication history with ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Look at all channels (email, LinkedIn, SMS, WhatsApp, calls). What's the engagement pattern? Are there gaps in communication? What's the sentiment trend? What should be the next touchpoint and when?`}
+                        tooltip="Ask Vasco about communication patterns"
+                        onClick={setVascoPrompt}
+                      />
+                    </div>
                     <CommunicationHub
                       lead={selectedLead}
                       communications={communications[selectedLead.id] || []}
@@ -2036,6 +2102,15 @@ export default function Dashboard() {
         {/* === DEAL PIPELINE SECTION (Phase 2) === */}
         {sidebarSection === "deals" && (
           <div className="p-6">
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--balboa-navy)", margin: 0 }}>Deal Pipeline</h2>
+              <VascoContextButton
+                prompt={`Analyze my entire deal pipeline. I have ${deals.length} deals. Give me a health check: which deals are at risk? Which should I prioritize this week? What's my expected close rate? Are there any stalled deals I should re-engage? Provide a prioritized action plan.`}
+                tooltip="Ask Vasco to analyze your pipeline"
+                onClick={setVascoPrompt}
+                size={16}
+              />
+            </div>
             <DealPipeline deals={deals} leads={leads} onNavigateToLead={handleNavigateToLead} />
           </div>
         )}
@@ -2133,6 +2208,15 @@ export default function Dashboard() {
         {/* === EVENT COMMAND CENTER SECTION (Phase 6) === */}
         {sidebarSection === "events" && (
           <div className="p-6">
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--balboa-navy)", margin: 0 }}>Event Command Center</h2>
+              <VascoContextButton
+                prompt={`Analyze my upcoming events and attendee lists. I have ${events.length} events tracked. Which events have the highest-value attendees? What's my outreach coverage — who haven't I contacted yet? Suggest the best pre-event and post-event outreach strategy for maximum ROI.`}
+                tooltip="Ask Vasco about event strategy"
+                onClick={setVascoPrompt}
+                size={16}
+              />
+            </div>
             <EventCommandCenter
               events={events}
               leads={leads}
