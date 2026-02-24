@@ -37,6 +37,12 @@ import OutreachApprovalQueue from "@/components/OutreachApprovalQueue";
 import LinkedInFilterSettings from "@/components/LinkedInFilterSettings";
 import LinkedInConversationList from "@/components/LinkedInConversationList";
 import LinkedInAuditLog from "@/components/LinkedInAuditLog";
+import EmailPopup from "@/components/EmailPopup";
+import LinkedInPopup from "@/components/LinkedInPopup";
+import ProposalCreatorPopup from "@/components/ProposalCreatorPopup";
+import DraftApprovalPanel from "@/components/DraftApprovalPanel";
+import OutreachActivitySummary from "@/components/OutreachActivitySummary";
+import LinkedInRedirectButton from "@/components/LinkedInRedirectButton";
 import { getClientConfig } from "@/lib/config-client";
 import { mockDeals, mockAccounts } from "@/lib/mock-phase2";
 
@@ -74,6 +80,10 @@ export default function Dashboard() {
   const [deals] = useState(mockDeals);
   const [accounts] = useState(mockAccounts);
   const [showLinkedInAuditLog, setShowLinkedInAuditLog] = useState(false);
+  const [showEmailPopup, setShowEmailPopup] = useState(false);
+  const [showLinkedInPopup, setShowLinkedInPopup] = useState(false);
+  const [showProposalPopup, setShowProposalPopup] = useState(false);
+  const [popupPrefill, setPopupPrefill] = useState<{ subject?: string; body?: string; draftId?: string } | null>(null);
 
   const supabase = createClient();
   const { isSandbox } = getClientConfig();
@@ -745,6 +755,61 @@ export default function Dashboard() {
     trackEventClient({ eventCategory: "outreach", eventAction: "message_copied" });
   };
 
+  const handleSendFromPopup = async (channel: "email" | "linkedin", data: { subject?: string; body: string; draftId?: string }) => {
+    if (!selectedLead) return;
+    try {
+      const resp = await fetch("/api/send-outreach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadId: selectedLead.id,
+          channel,
+          message: data.body,
+          subject: data.subject,
+        }),
+      });
+      const result = await resp.json();
+
+      // If draftId provided, mark it as sent
+      if (data.draftId) updateDraftStatus(selectedLead.id, data.draftId, "sent");
+
+      // Auto-advance lead status
+      if (selectedLead.contactStatus === "not_contacted") {
+        handleUpdateLead(selectedLead.id, { contactStatus: "neutral" });
+      }
+      if (selectedLead.status === "new") {
+        updateLeadStatus(selectedLead.id, "engaged");
+      }
+
+      // Add touchpoint
+      const updatedLead = {
+        ...selectedLead,
+        touchpointTimeline: [...selectedLead.touchpointTimeline, {
+          id: `tp-send-${Date.now()}`,
+          channel: channel as "email" | "linkedin",
+          type: `${channel}_sent`,
+          description: data.subject || data.body.substring(0, 80),
+          date: new Date().toISOString(),
+        }],
+      };
+      setLeads(prev => prev.map(l => l.id === selectedLead.id ? updatedLead : l));
+      setSelectedLead(updatedLead);
+      persistLead(updatedLead);
+
+      trackEventClient({ eventCategory: "outreach", eventAction: "message_sent", leadId: selectedLead.id, channel });
+
+      setToastMessage(result.queued ? "Outreach queued for approval!" : `${channel === "email" ? "Email" : "LinkedIn message"} sent!`);
+      setTimeout(() => setToastMessage(null), 2500);
+    } catch (err) {
+      console.error("Send from popup error:", err);
+      setToastMessage("Failed to send — try again");
+      setTimeout(() => setToastMessage(null), 2500);
+    }
+    setShowEmailPopup(false);
+    setShowLinkedInPopup(false);
+    setPopupPrefill(null);
+  };
+
   const stats = {
     totalConnections: leads.length,
     hotLeads: leads.filter(l => l.icpScore?.tier === "hot").length,
@@ -1351,7 +1416,7 @@ export default function Dashboard() {
                           {/* Action buttons grid */}
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
                             {/* Send Email */}
-                            <button onClick={() => generateMessage(selectedLead, "email_initial", "email")}
+                            <button onClick={() => setShowEmailPopup(true)}
                               disabled={!!generatingAction}
                               style={{
                                 display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10,
@@ -1360,16 +1425,14 @@ export default function Dashboard() {
                                 border: rec.icon === "email" ? "none" : "1px solid var(--balboa-border)",
                                 cursor: generatingAction ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, transition: "all 0.2s ease",
                                 boxShadow: rec.icon === "email" ? "0 2px 8px rgba(30,42,94,0.25)" : "none",
-                                opacity: generatingAction && generatingAction !== "email_initial" ? 0.5 : 1,
+                                opacity: generatingAction ? 0.5 : 1,
                               }}>
-                              {generatingAction === "email_initial"
-                                ? <RefreshCw className="w-4 h-4 animate-spin" style={{ flexShrink: 0 }} />
-                                : <Mail className="w-4 h-4" style={{ flexShrink: 0, opacity: rec.icon === "email" ? 1 : 0.7 }} />}
-                              <span>{generatingAction === "email_initial" ? "Generating..." : "Send Email"}</span>
+                              <Mail className="w-4 h-4" style={{ flexShrink: 0, opacity: rec.icon === "email" ? 1 : 0.7 }} />
+                              <span>Send Email</span>
                             </button>
 
                             {/* Send LinkedIn Message */}
-                            <button onClick={() => generateMessage(selectedLead, "connection_followup", "linkedin")}
+                            <button onClick={() => setShowLinkedInPopup(true)}
                               disabled={!!generatingAction}
                               style={{
                                 display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10,
@@ -1378,12 +1441,10 @@ export default function Dashboard() {
                                 border: rec.icon === "linkedin" ? "none" : "1px solid #b3d4fc",
                                 cursor: generatingAction ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, transition: "all 0.2s ease",
                                 boxShadow: rec.icon === "linkedin" ? "0 2px 8px rgba(0,119,181,0.25)" : "none",
-                                opacity: generatingAction && generatingAction !== "connection_followup" ? 0.5 : 1,
+                                opacity: generatingAction ? 0.5 : 1,
                               }}>
-                              {generatingAction === "connection_followup"
-                                ? <RefreshCw className="w-4 h-4 animate-spin" style={{ flexShrink: 0 }} />
-                                : <Linkedin className="w-4 h-4" style={{ flexShrink: 0, opacity: rec.icon === "linkedin" ? 1 : 0.7 }} />}
-                              <span>{generatingAction === "connection_followup" ? "Generating..." : "LinkedIn Msg"}</span>
+                              <Linkedin className="w-4 h-4" style={{ flexShrink: 0, opacity: rec.icon === "linkedin" ? 1 : 0.7 }} />
+                              <span>LinkedIn Msg</span>
                             </button>
 
                             {/* Schedule Meeting */}
@@ -1403,7 +1464,7 @@ export default function Dashboard() {
                             </button>
 
                             {/* Send Proposal/Deck */}
-                            <button onClick={() => generateMessage(selectedLead, "value_share", "email")}
+                            <button onClick={() => setShowProposalPopup(true)}
                               disabled={!!generatingAction}
                               style={{
                                 display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10,
@@ -1412,12 +1473,10 @@ export default function Dashboard() {
                                 border: rec.icon === "proposal" ? "none" : "1px solid #c4b5fd",
                                 cursor: generatingAction ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, transition: "all 0.2s ease",
                                 boxShadow: rec.icon === "proposal" ? "0 2px 8px rgba(124,58,237,0.25)" : "none",
-                                opacity: generatingAction && generatingAction !== "value_share" ? 0.5 : 1,
+                                opacity: generatingAction ? 0.5 : 1,
                               }}>
-                              {generatingAction === "value_share"
-                                ? <RefreshCw className="w-4 h-4 animate-spin" style={{ flexShrink: 0 }} />
-                                : <FileText className="w-4 h-4" style={{ flexShrink: 0, opacity: rec.icon === "proposal" ? 1 : 0.7 }} />}
-                              <span>{generatingAction === "value_share" ? "Generating..." : "Send Proposal"}</span>
+                              <FileText className="w-4 h-4" style={{ flexShrink: 0, opacity: rec.icon === "proposal" ? 1 : 0.7 }} />
+                              <span>Send Proposal</span>
                             </button>
                           </div>
 
@@ -1441,18 +1500,7 @@ export default function Dashboard() {
                               }}>
                               <BookOpen className="w-3.5 h-3.5" style={{ opacity: 0.7 }} /> Prep Kit
                             </button>
-                            <button onClick={() => {
-                              if (selectedLead.linkedinUrl) window.open(selectedLead.linkedinUrl, "_blank");
-                              else if (selectedLead.firstName && selectedLead.lastName) window.open(`https://linkedin.com/search/results/people/?keywords=${encodeURIComponent(selectedLead.firstName + " " + selectedLead.lastName + " " + selectedLead.company)}`, "_blank");
-                            }}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, flex: 1,
-                                background: "var(--balboa-bg-alt)", color: "var(--balboa-navy)",
-                                border: "1px solid var(--balboa-border)", cursor: "pointer",
-                                fontSize: 11, fontWeight: 600, transition: "all 0.2s ease",
-                              }}>
-                              <ExternalLink className="w-3.5 h-3.5" style={{ opacity: 0.7 }} /> LinkedIn
-                            </button>
+                            <LinkedInRedirectButton lead={selectedLead} onCopy={copyToClipboard} style={{ flex: 1 }} />
                           </div>
 
                           {/* Video preps count + Prep Kit panel */}
@@ -1662,110 +1710,32 @@ export default function Dashboard() {
                     {/* Cross-Channel Warning */}
                     <CrossChannelWarning lead={selectedLead} currentChannel="linkedin" />
 
-                    {/* Draft Messages */}
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                        <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                          <MessageSquare className="w-3.5 h-3.5" style={{ color: "var(--balboa-navy)" }} /> Draft Messages
-                        </h4>
-                        <div style={{ display: "flex", gap: 2 }}>
-                          {([
-                            { type: "connection_followup", channel: "linkedin" as const, label: "+ LinkedIn" },
-                            { type: "email_initial", channel: "email" as const, label: "+ Email" },
-                            { type: "value_share", channel: "email" as const, label: "+ Proposal" },
-                          ]).map((item) => (
-                            <button key={item.type} onClick={() => generateMessage(selectedLead, item.type, item.channel)}
-                              disabled={!!generatingAction}
-                              className="btn-ghost" style={{ fontSize: 10, opacity: generatingAction ? 0.5 : 1 }}>
-                              {item.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div style={{ marginBottom: 10 }}>
-                        <LanguageSelector value={contentLanguage} onChange={setContentLanguage} />
-                      </div>
-                      {selectedLead.draftMessages.length === 0 ? (
-                        <p style={{ fontSize: 12, fontStyle: "italic", color: "var(--balboa-text-muted)", padding: "12px 0" }}>No drafts yet. Generate one above.</p>
-                      ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {selectedLead.draftMessages.map((d) => (
-                            <div key={d.id} style={{ borderRadius: 10, padding: 14, background: "var(--balboa-bg-alt)", border: "1px solid var(--balboa-border-light)" }}>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--balboa-navy)", letterSpacing: "0.03em" }}>{d.type?.replace(/_/g, " ").toUpperCase()}</span>
-                                  <span className={`channel-pill ${d.channel === "linkedin" ? "channel-linkedin" : "channel-email"}`}>
-                                    {d.channel === "linkedin" ? <Linkedin className="w-3 h-3" /> : <AtSign className="w-3 h-3" />}
-                                    {d.channel}
-                                  </span>
-                                </div>
-                                <span className={`badge ${d.status === "approved" ? "badge-connected" : d.status === "rejected" ? "badge-hot" : "badge-warm"}`}>
-                                  {d.status}
-                                </span>
-                              </div>
-                              <p style={{ fontSize: 12, whiteSpace: "pre-wrap", marginBottom: 10, color: "var(--balboa-text-secondary)", lineHeight: 1.5 }}>{d.body}</p>
-                              <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", borderTop: "1px solid var(--balboa-border-light)", paddingTop: 8 }}>
-                                <button onClick={() => copyToClipboard(d.body)} className="btn-ghost" style={{ fontSize: 11 }}>
-                                  <Copy className="w-3 h-3" /> Copy
-                                </button>
-                                {d.status === "draft" && (
-                                  <>
-                                    <button onClick={() => updateDraftStatus(selectedLead.id, d.id, "approved")}
-                                      className="btn-ghost" style={{ fontSize: 11, color: "var(--balboa-green)" }}>
-                                      <CheckCircle className="w-3 h-3" /> Approve
-                                    </button>
-                                    <button onClick={() => updateDraftStatus(selectedLead.id, d.id, "rejected")}
-                                      className="btn-ghost" style={{ fontSize: 11, color: "var(--balboa-red)" }}>
-                                      <XCircle className="w-3 h-3" /> Reject
-                                    </button>
-                                  </>
-                                )}
-                                {d.status === "approved" && (
-                                  <>
-                                    {d.channel === "linkedin" ? (
-                                      <button onClick={() => {
-                                        copyToClipboard(d.body);
-                                        const url = selectedLead.linkedinUrl
-                                          || `https://linkedin.com/search/results/people/?keywords=${encodeURIComponent(selectedLead.firstName + " " + selectedLead.lastName + " " + selectedLead.company)}`;
-                                        window.open(url, "_blank");
-                                        trackEventClient({ eventCategory: "outreach", eventAction: "message_sent", leadId: selectedLead.id, channel: "linkedin" });
-                                      }} className="btn-ghost" style={{ fontSize: 11, color: "#0077b5", fontWeight: 700 }}>
-                                        <ExternalLink className="w-3 h-3" /> Copy & Open LinkedIn
-                                      </button>
-                                    ) : (
-                                      <button onClick={() => {
-                                        const subject = encodeURIComponent(d.subject || "");
-                                        const body = encodeURIComponent(d.body || "");
-                                        const email = selectedLead.email || "";
-                                        window.open(`mailto:${email}?subject=${subject}&body=${body}`, "_blank");
-                                        updateDraftStatus(selectedLead.id, d.id, "sent");
-                                        // Auto-advance lead status on send
-                                        if (selectedLead.contactStatus === "not_contacted") {
-                                          handleUpdateLead(selectedLead.id, { contactStatus: "neutral" });
-                                        }
-                                        if (selectedLead.status === "new") {
-                                          updateLeadStatus(selectedLead.id, "engaged");
-                                        }
-                                        trackEventClient({ eventCategory: "outreach", eventAction: "message_sent", leadId: selectedLead.id, channel: "email" });
-                                        setToastMessage("Email compose opened!");
-                                        setTimeout(() => setToastMessage(null), 2000);
-                                      }} className="btn-ghost" style={{ fontSize: 11, color: "var(--balboa-green)", fontWeight: 700 }}>
-                                        <Send className="w-3 h-3" /> Compose Email
-                                      </button>
-                                    )}
-                                  </>
-                                )}
-                                {d.status === "sent" && (
-                                  <span style={{ fontSize: 10, color: "var(--balboa-green)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                                    <CheckCircle className="w-3 h-3" /> Sent
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                    {/* Draft Messages — DraftApprovalPanel */}
+                    <div style={{ marginBottom: 10 }}>
+                      <LanguageSelector value={contentLanguage} onChange={setContentLanguage} />
                     </div>
+                    <DraftApprovalPanel
+                      drafts={selectedLead.draftMessages}
+                      lead={selectedLead}
+                      onApprove={(id) => updateDraftStatus(selectedLead.id, id, "approved")}
+                      onReject={(id) => updateDraftStatus(selectedLead.id, id, "rejected")}
+                      onSendViaEmail={(d) => {
+                        setPopupPrefill({ subject: d.subject, body: d.body, draftId: d.id });
+                        setShowEmailPopup(true);
+                      }}
+                      onSendViaLinkedIn={(d) => {
+                        setPopupPrefill({ body: d.body, draftId: d.id });
+                        setShowLinkedInPopup(true);
+                      }}
+                      onCopy={copyToClipboard}
+                      onGenerateLinkedIn={() => generateMessage(selectedLead, "connection_followup", "linkedin")}
+                      onGenerateEmail={() => generateMessage(selectedLead, "email_initial", "email")}
+                      onGenerateProposal={() => setShowProposalPopup(true)}
+                      generatingAction={generatingAction}
+                    />
+
+                    {/* Outreach Activity Summary */}
+                    <OutreachActivitySummary lead={selectedLead} />
                   </div>
                 )}
               </div>
@@ -1985,6 +1955,71 @@ export default function Dashboard() {
               templateType: "meeting_request",
               leadTier: selectedLead.icpScore?.tier,
               metadata: { meetingDate: meeting.date, meetingTime: meeting.time, meetingType: meeting.type },
+            });
+          }}
+          language={contentLanguage}
+        />
+      )}
+
+      {/* Email Popup */}
+      {showEmailPopup && selectedLead && (
+        <EmailPopup
+          lead={selectedLead}
+          onClose={() => { setShowEmailPopup(false); setPopupPrefill(null); }}
+          onSend={(d) => handleSendFromPopup("email", { ...d, draftId: popupPrefill?.draftId })}
+          language={contentLanguage}
+          initialSubject={popupPrefill?.subject}
+          initialBody={popupPrefill?.body}
+          initialDraftId={popupPrefill?.draftId}
+        />
+      )}
+
+      {/* LinkedIn Popup */}
+      {showLinkedInPopup && selectedLead && (
+        <LinkedInPopup
+          lead={selectedLead}
+          onClose={() => { setShowLinkedInPopup(false); setPopupPrefill(null); }}
+          onSend={(d) => handleSendFromPopup("linkedin", d)}
+          language={contentLanguage}
+          initialBody={popupPrefill?.body}
+          initialDraftId={popupPrefill?.draftId}
+        />
+      )}
+
+      {/* Proposal Creator Popup */}
+      {showProposalPopup && selectedLead && (
+        <ProposalCreatorPopup
+          lead={selectedLead}
+          onClose={() => setShowProposalPopup(false)}
+          onSend={(d) => {
+            // Save proposal as a draft message on the lead
+            const draft: DraftMessage = {
+              id: `draft-proposal-${Date.now()}`,
+              type: "value_share",
+              channel: "email",
+              subject: d.subject,
+              body: d.body,
+              status: "draft",
+              createdAt: new Date().toISOString(),
+              personalization: [`Document type: ${d.docType}`],
+            };
+            const updatedLead = {
+              ...selectedLead,
+              draftMessages: [...selectedLead.draftMessages, draft],
+            };
+            setLeads(prev => prev.map(l => l.id === selectedLead.id ? updatedLead : l));
+            setSelectedLead(updatedLead);
+            persistLead(updatedLead);
+            setShowProposalPopup(false);
+            setToastMessage("Proposal draft saved! Review & approve to send.");
+            setTimeout(() => setToastMessage(null), 3000);
+            trackEventClient({
+              eventCategory: "outreach",
+              eventAction: "draft_created",
+              leadId: selectedLead.id,
+              templateType: "value_share",
+              leadTier: selectedLead.icpScore?.tier,
+              metadata: { docType: d.docType },
             });
           }}
           language={contentLanguage}

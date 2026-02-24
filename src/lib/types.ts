@@ -318,6 +318,9 @@ export type LinkedInOutreachStage =
 // === MULTI-LANGUAGE SUPPORT ===
 export type SupportedLanguage = "english" | "spanish" | "portuguese";
 
+// === PROPOSAL TYPES ===
+export type ProposalDocType = "scope_of_work" | "proposal" | "deck" | "case_study" | "one_pager";
+
 // === VIDEO PREP CENTER ===
 export type VideoOption = "script" | "slides" | "video";
 
