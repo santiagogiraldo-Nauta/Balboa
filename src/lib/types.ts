@@ -303,7 +303,7 @@ export interface DashboardStats {
   weeklyEngagement: number;
 }
 
-export type SidebarSection = "today" | "leads" | "followups" | "prospecting" | "playbook" | "outreach" | "deals" | "queue" | "linkedin-privacy";
+export type SidebarSection = "today" | "leads" | "followups" | "prospecting" | "playbook" | "outreach" | "deals" | "queue" | "linkedin-privacy" | "signals" | "sequences" | "journey" | "threading" | "winloss" | "notifications";
 
 // === LINKEDIN OUTREACH TRACKER ===
 export type LinkedInOutreachStage =
@@ -706,4 +706,136 @@ export interface GlobalAnalyzerResult {
     action: string;
   }>;
   topActions: string[];
+}
+
+// === BUYER JOURNEY ===
+export type BuyerJourneyStage = "unaware" | "problem_aware" | "solution_aware" | "evaluating" | "decision" | "customer";
+
+// === SIGNAL ENGINE ===
+export type SignalType = "email_open" | "linkedin_view" | "linkedin_engagement" | "hubspot_stage_change" | "marketing_signal" | "job_change" | "company_growth" | "funding_round" | "competitor_mention" | "website_visit";
+
+export type SignalUrgency = "immediate" | "high" | "medium" | "low";
+
+export interface LiveSignal {
+  id: string;
+  leadId: string;
+  leadName: string;
+  company: string;
+  signalType: SignalType;
+  description: string;
+  urgency: SignalUrgency;
+  channel?: "email" | "linkedin" | "call";
+  recommendedAction: string;
+  recommendedChannel?: "email" | "linkedin";
+  timestamp: string;
+  snoozedUntil?: string;
+  actedOn?: boolean;
+  actedOnAt?: string;
+}
+
+// === ASSISTANT ===
+export interface AssistantMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+// === NOTIFICATIONS ===
+export type NotificationChannel = "email" | "whatsapp" | "in_app";
+export type NotificationPriority = "urgent" | "high" | "normal" | "low";
+
+export interface BalboaNotification {
+  id: string;
+  userId: string;
+  title: string;
+  body: string;
+  priority: NotificationPriority;
+  channel: NotificationChannel;
+  relatedLeadId?: string;
+  relatedDealId?: string;
+  signalId?: string;
+  read: boolean;
+  sentAt: string;
+  readAt?: string;
+}
+
+// === SEQUENCES ===
+export type SequenceStatus = "active" | "paused" | "draft" | "completed";
+export type SequenceStepStatus = "pending" | "sent" | "skipped" | "replied" | "bounced";
+
+export interface Sequence {
+  id: string;
+  name: string;
+  description: string;
+  status: SequenceStatus;
+  steps: SequenceStep[];
+  enrolledLeadIds: string[];
+  createdAt: string;
+  updatedAt: string;
+  stats: {
+    enrolled: number;
+    completed: number;
+    replied: number;
+    meetings: number;
+  };
+}
+
+export interface SequenceStep {
+  id: string;
+  stepNumber: number;
+  channel: "email" | "linkedin";
+  type: string;
+  subject?: string;
+  body: string;
+  delayDays: number;
+  status?: SequenceStepStatus;
+  sentAt?: string;
+  stats: {
+    sent: number;
+    opened: number;
+    replied: number;
+    bounced: number;
+  };
+}
+
+export interface SequenceEnrollment {
+  id: string;
+  sequenceId: string;
+  leadId: string;
+  currentStep: number;
+  status: "active" | "paused" | "completed" | "replied" | "removed";
+  startedAt: string;
+  lastStepAt?: string;
+  completedAt?: string;
+  pauseReason?: string;
+}
+
+// === MULTI-THREADING ===
+export interface AccountContact {
+  id: string;
+  accountId: string;
+  leadId?: string;
+  firstName: string;
+  lastName: string;
+  position: string;
+  email?: string;
+  linkedinUrl?: string;
+  role: "champion" | "economic_buyer" | "technical_validator" | "influencer" | "blocker" | "end_user";
+  engagementLevel: "high" | "medium" | "low" | "none";
+  lastContactDate?: string;
+  notes?: string;
+}
+
+export interface AccountThread {
+  id: string;
+  accountId: string;
+  accountName: string;
+  contacts: AccountContact[];
+  totalContacts: number;
+  engagedContacts: number;
+  championIdentified: boolean;
+  economicBuyerIdentified: boolean;
+  riskLevel: "low" | "medium" | "high";
+  recommendation: string;
 }

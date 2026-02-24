@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import Papa from "papaparse";
 import JSZip from "jszip";
 import {
@@ -11,8 +11,9 @@ import {
   Linkedin, AtSign,
   Phone, ChevronDown, Video, BookOpen, Shield, StickyNote,
   Radar, CalendarCheck, LogOut, Mail, FileText, Zap, ExternalLink, Calendar,
+  Bell, GitBranch, Map, TrendingUp, Layers,
 } from "lucide-react";
-import type { Lead, DraftMessage, CallLog, CallOutcome, VideoPrep, PrepKit, BattleCard, SupportedLanguage, SidebarSection } from "@/lib/types";
+import type { Lead, Deal, Account, DraftMessage, CallLog, CallOutcome, VideoPrep, PrepKit, BattleCard, SupportedLanguage, SidebarSection } from "@/lib/types";
 import { MOCK_LEADS } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 import { getLeads, upsertLead, upsertLeads } from "@/lib/db";
@@ -43,6 +44,13 @@ import ProposalCreatorPopup from "@/components/ProposalCreatorPopup";
 import DraftApprovalPanel from "@/components/DraftApprovalPanel";
 import OutreachActivitySummary from "@/components/OutreachActivitySummary";
 import LinkedInRedirectButton from "@/components/LinkedInRedirectButton";
+import BalboaAssistant from "@/components/BalboaAssistant";
+import SignalEngine from "@/components/SignalEngine";
+import BuyerJourneyMap from "@/components/BuyerJourneyMap";
+import WinLossIntelligence from "@/components/WinLossIntelligence";
+import MultiThreadingIntelligence from "@/components/MultiThreadingIntelligence";
+import SequenceBuilder from "@/components/SequenceBuilder";
+import NotificationCenter from "@/components/NotificationCenter";
 import { getClientConfig } from "@/lib/config-client";
 import { mockDeals, mockAccounts } from "@/lib/mock-phase2";
 
@@ -87,6 +95,34 @@ export default function Dashboard() {
 
   const supabase = createClient();
   const { isSandbox } = getClientConfig();
+
+  // Adapt PipelineDeal[] to Deal[] for components that expect the canonical Deal type
+  const typedDeals: Deal[] = useMemo(() => deals.map((d) => ({
+    id: d.id,
+    userId: "",
+    accountId: "",
+    dealName: d.deal_name,
+    amount: d.amount,
+    dealStage: (d.deal_stage === "closed_won" ? "closed_won" : d.deal_stage === "closed_lost" ? "closed_lost" : d.deal_stage === "contracting" || d.deal_stage === "go" ? "negotiation" : d.deal_stage === "proposal_review" ? "proposal" : "qualification") as Deal["dealStage"],
+    probability: d.probability,
+    dealHealth: d.deal_health,
+    leadId: d.lead_id,
+    createdAt: d.create_date,
+    updatedAt: d.create_date,
+  })), [deals]);
+
+  // Adapt mockAccounts to Account[] for components that expect the canonical Account type
+  const typedAccounts: Account[] = useMemo(() => accounts.map((a) => ({
+    id: a.id,
+    userId: "",
+    companyName: a.companyName,
+    industry: a.industry,
+    estimatedRevenue: a.estimatedRevenue,
+    employeeCount: a.employeeCount,
+    website: a.website,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  })), [accounts]);
 
   // Load user + leads from Supabase on mount (with timeout guard)
   useEffect(() => {
@@ -893,6 +929,12 @@ export default function Dashboard() {
     deals: { title: "Deal Pipeline", subtitle: "Track and manage your deals with AI-powered strategy recommendations" },
     queue: { title: "Outreach Queue", subtitle: "Review and approve outreach messages before they are sent" },
     "linkedin-privacy": { title: "LinkedIn Privacy", subtitle: "Filter personal conversations from business workflows" },
+    signals: { title: "Signal Engine", subtitle: "Real-time intent signals and recommended actions" },
+    sequences: { title: "Sequence Automation", subtitle: "Build multi-step outreach sequences with auto-send and approval gates" },
+    journey: { title: "Buyer Journey", subtitle: "Visualize where your leads are in the buying process" },
+    threading: { title: "Multi-Threading", subtitle: "Track stakeholder engagement across accounts" },
+    winloss: { title: "Win/Loss Intelligence", subtitle: "Analyze deal outcomes to improve your sales strategy" },
+    notifications: { title: "Notifications", subtitle: "Stay on top of urgent signals and important updates" },
   };
 
   // Show loading spinner while checking auth
@@ -988,6 +1030,51 @@ export default function Dashboard() {
             className={`sidebar-item ${sidebarSection === "linkedin-privacy" ? "active" : ""}`}>
             <Shield className="w-5 h-5" />
             <span className="tooltip">Privacy</span>
+          </button>
+
+          {/* Divider */}
+          <div style={{ height: 1, background: "var(--balboa-border-light)", margin: "12px 8px" }} />
+
+          {/* Signal Engine */}
+          <button onClick={() => navigateTo("signals")}
+            className={`sidebar-item ${sidebarSection === "signals" ? "active" : ""}`}>
+            <Zap className="w-5 h-5" />
+            <span className="tooltip">Signals</span>
+          </button>
+
+          {/* Buyer Journey */}
+          <button onClick={() => navigateTo("journey")}
+            className={`sidebar-item ${sidebarSection === "journey" ? "active" : ""}`}>
+            <Map className="w-5 h-5" />
+            <span className="tooltip">Journey</span>
+          </button>
+
+          {/* Sequences */}
+          <button onClick={() => navigateTo("sequences")}
+            className={`sidebar-item ${sidebarSection === "sequences" ? "active" : ""}`}>
+            <GitBranch className="w-5 h-5" />
+            <span className="tooltip">Sequences</span>
+          </button>
+
+          {/* Multi-Threading */}
+          <button onClick={() => navigateTo("threading")}
+            className={`sidebar-item ${sidebarSection === "threading" ? "active" : ""}`}>
+            <Layers className="w-5 h-5" />
+            <span className="tooltip">Threading</span>
+          </button>
+
+          {/* Win/Loss */}
+          <button onClick={() => navigateTo("winloss")}
+            className={`sidebar-item ${sidebarSection === "winloss" ? "active" : ""}`}>
+            <TrendingUp className="w-5 h-5" />
+            <span className="tooltip">Win/Loss</span>
+          </button>
+
+          {/* Notifications */}
+          <button onClick={() => navigateTo("notifications")}
+            className={`sidebar-item ${sidebarSection === "notifications" ? "active" : ""}`}>
+            <Bell className="w-5 h-5" />
+            <span className="tooltip">Notifications</span>
           </button>
         </nav>
       </div>
@@ -1875,6 +1962,68 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* === SIGNAL ENGINE SECTION === */}
+        {sidebarSection === "signals" && (
+          <div className="p-6">
+            <SignalEngine
+              leads={leads}
+              onNavigateToLead={handleNavigateToLead}
+              onGenerateMessage={generateMessage}
+            />
+          </div>
+        )}
+
+        {/* === BUYER JOURNEY MAP SECTION === */}
+        {sidebarSection === "journey" && (
+          <div className="p-6">
+            <BuyerJourneyMap
+              leads={leads}
+              deals={typedDeals}
+              onNavigateToLead={handleNavigateToLead}
+              selectedLead={selectedLead}
+            />
+          </div>
+        )}
+
+        {/* === SEQUENCE AUTOMATION SECTION === */}
+        {sidebarSection === "sequences" && (
+          <div className="p-6">
+            <SequenceBuilder
+              leads={leads}
+              onNavigateToLead={handleNavigateToLead}
+            />
+          </div>
+        )}
+
+        {/* === MULTI-THREADING SECTION === */}
+        {sidebarSection === "threading" && (
+          <div className="p-6">
+            <MultiThreadingIntelligence
+              leads={leads}
+              deals={typedDeals}
+              accounts={typedAccounts}
+              onNavigateToLead={handleNavigateToLead}
+            />
+          </div>
+        )}
+
+        {/* === WIN/LOSS INTELLIGENCE SECTION === */}
+        {sidebarSection === "winloss" && (
+          <div className="p-6">
+            <WinLossIntelligence
+              deals={typedDeals}
+              leads={leads}
+            />
+          </div>
+        )}
+
+        {/* === NOTIFICATION CENTER SECTION === */}
+        {sidebarSection === "notifications" && (
+          <div className="p-6">
+            <NotificationCenter leads={leads} />
+          </div>
+        )}
+
       </div>
 
       {/* === ANALYZER PANEL (Phase 2) === */}
@@ -2025,6 +2174,18 @@ export default function Dashboard() {
           language={contentLanguage}
         />
       )}
+
+      {/* AI Assistant (floating) */}
+      <BalboaAssistant
+        leads={leads}
+        deals={typedDeals}
+        accounts={typedAccounts}
+        selectedLead={selectedLead}
+        currentSection={sidebarSection}
+        onNavigateToLead={handleNavigateToLead}
+        onGenerateMessage={generateMessage}
+        language={contentLanguage}
+      />
 
       {/* Toast Notification */}
       {toastMessage && (
