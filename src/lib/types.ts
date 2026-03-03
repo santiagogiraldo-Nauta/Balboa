@@ -1018,3 +1018,46 @@ export interface VascoContextPrompt {
   leadId?: string;
   dealId?: string;
 }
+
+// === OUTREACH PROGRESS & LIST BUILDER ===
+
+export interface WeeklyMetrics {
+  weekStart: string;
+  weekEnd: string;
+  contactsReached: number;
+  callsMade: number;
+  emailsSent: number;
+  linkedInConnections: number;
+  connectRate: number;
+  meaningfulConversations: number;
+  meetingsBooked: number;
+  meetingsHeld: number;
+  noShows: number;
+}
+
+export interface OutreachList {
+  id: string;
+  name: string;
+  source: "manual" | "imported" | "agent" | "event";
+  createdAt: string;
+  status: "active" | "paused" | "completed";
+  contactIds: string[];
+  stats: {
+    total: number;
+    contacted: number;
+    positive: number;
+    meetings: number;
+  };
+}
+
+export interface BuyerPersona {
+  id: string;
+  name: string;
+  titles: string[];
+  industries: string[];
+  companySizeMin?: number;
+  companySizeMax?: number;
+  geography?: string;
+  additionalFilters?: Record<string, string>;
+  createdAt: string;
+}
