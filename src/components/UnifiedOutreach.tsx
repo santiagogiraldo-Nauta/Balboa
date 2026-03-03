@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { Lead, SupportedLanguage } from "@/lib/types";
 import { trackEventClient } from "@/lib/tracking";
+import type { ReactNode } from "react";
 
 interface Props {
   leads: Lead[];
@@ -16,10 +17,13 @@ interface Props {
   onNavigateToLead: (leadId: string) => void;
   generatingForLeadId: string | null;
   contentLanguage: SupportedLanguage;
+  /** Render prop for the Lead 360 Context Panel. When provided, outreach uses a 3-column layout. */
+  renderLeadContext?: (lead: Lead) => ReactNode;
 }
 
 export default function UnifiedOutreach({
   leads, onGenerateMessage, onCopyMessage, onNavigateToLead, generatingForLeadId, contentLanguage,
+  renderLeadContext,
 }: Props) {
   const [channelFilter, setChannelFilter] = useState<"all" | "email" | "linkedin">("all");
   const [tierFilter, setTierFilter] = useState<"all" | "hot" | "warm" | "cold">("all");
@@ -148,9 +152,9 @@ export default function UnifiedOutreach({
       </div>
 
       {/* Main content area */}
-      <div style={{ display: "flex", gap: 20 }}>
+      <div style={{ display: "flex", gap: 16 }}>
         {/* Lead list */}
-        <div style={{ flex: selectedLead ? "0 0 45%" : 1, transition: "flex 0.3s ease" }}>
+        <div style={{ flex: selectedLead ? (renderLeadContext ? "0 0 28%" : "0 0 45%") : 1, transition: "flex 0.3s ease" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "calc(100vh - 380px)", overflowY: "auto", paddingRight: 4 }}>
             {actionableLeads.map(lead => {
               const isSelected = selectedLead?.id === lead.id;
@@ -234,9 +238,16 @@ export default function UnifiedOutreach({
           </div>
         </div>
 
+        {/* Middle panel: Lead 360 Context (when renderLeadContext is provided) */}
+        {selectedLead && renderLeadContext && (
+          <div className="card fade-in" style={{ flex: "0 0 36%", maxHeight: "calc(100vh - 380px)", overflowY: "auto", padding: "18px 20px" }}>
+            {renderLeadContext(selectedLead)}
+          </div>
+        )}
+
         {/* Right panel: Lead detail + compose */}
         {selectedLead && (
-          <div className="card fade-in" style={{ flex: "0 0 53%", maxHeight: "calc(100vh - 380px)", overflowY: "auto" }}>
+          <div className="card fade-in" style={{ flex: renderLeadContext ? "0 0 34%" : "0 0 53%", maxHeight: "calc(100vh - 380px)", overflowY: "auto" }}>
             {/* Lead header */}
             <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--balboa-border-light)", background: "linear-gradient(135deg, rgba(30,42,94,0.02), rgba(59,91,219,0.02))" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>

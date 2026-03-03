@@ -11,7 +11,7 @@ import {
   Linkedin, AtSign,
   Phone, ChevronDown, Video, BookOpen, Shield, StickyNote,
   Radar, CalendarCheck, LogOut, Mail, FileText, Zap, ExternalLink, Calendar,
-  Bell, GitBranch, Map, TrendingUp, Layers,
+  Bell, GitBranch, Map, TrendingUp, Layers, Bot,
 } from "lucide-react";
 import type { Lead, Deal, Account, DraftMessage, CallLog, CallOutcome, VideoPrep, PrepKit, BattleCard, SupportedLanguage, SidebarSection } from "@/lib/types";
 import { MOCK_LEADS } from "@/lib/mock-data";
@@ -56,6 +56,11 @@ import CommunicationHub from "@/components/CommunicationHub";
 import EventCommandCenter from "@/components/EventCommandCenter";
 import ColdCallScript from "@/components/ColdCallScript";
 import VascoContextButton from "@/components/VascoContextButton";
+import AgentHubSection from "@/components/AgentHubSection";
+import InboxSection from "@/components/InboxSection";
+import ComplianceDashboard from "@/components/ComplianceDashboard";
+import ComplianceWarningBar from "@/components/ComplianceWarningBar";
+import LeadContextPanel, { Avatar, ScoreRing, ChannelIndicator, getRecommendedAction } from "@/components/LeadContextPanel";
 import { getClientConfig } from "@/lib/config-client";
 import { mockDeals, mockAccounts } from "@/lib/mock-phase2";
 import { mockEvents } from "@/lib/mock-events";
@@ -413,57 +418,7 @@ export default function Dashboard() {
     trackEventClient({ eventCategory: "lead", eventAction: "note_added", leadId });
   };
 
-  // Compute recommended next action for a lead
-  const getRecommendedAction = (lead: Lead): { action: string; reason: string; icon: string; urgency: "urgent" | "high" | "medium" | "low" } => {
-    const daysSinceContact = lead.touchpointTimeline?.length > 0
-      ? Math.floor((Date.now() - new Date(lead.touchpointTimeline[lead.touchpointTimeline.length - 1].date).getTime()) / (1000 * 60 * 60 * 24))
-      : 999;
-    const hasEmail = lead.channels?.email || lead.email;
-    const hasLinkedIn = lead.channels?.linkedin || lead.linkedinUrl;
-    const tier = lead.icpScore?.tier || "cold";
-    const status = lead.status || "new";
-
-    // New lead — first touch
-    if (status === "new" && lead.contactStatus === "not_contacted") {
-      if (hasLinkedIn) return { action: "Send LinkedIn Message", reason: "New lead — make your first connection", icon: "linkedin", urgency: tier === "hot" ? "urgent" : "high" };
-      if (hasEmail) return { action: "Send Introduction Email", reason: "New lead — introduce yourself", icon: "email", urgency: tier === "hot" ? "urgent" : "high" };
-      return { action: "Research Lead", reason: "New lead — gather contact info", icon: "research", urgency: "medium" };
-    }
-
-    // Positive reply — move fast
-    if (lead.contactStatus === "positive") {
-      return { action: "Schedule Meeting", reason: "Positive response — strike while hot", icon: "meeting", urgency: "urgent" };
-    }
-
-    // Opportunity stage — send proposal
-    if (status === "opportunity") {
-      return { action: "Send Proposal/Deck", reason: "Opportunity stage — advance the deal", icon: "proposal", urgency: "high" };
-    }
-
-    // Engaged but stalling
-    if (status === "engaged" && daysSinceContact > 5) {
-      return { action: "Send Follow-up Email", reason: `No contact in ${daysSinceContact} days — re-engage`, icon: "email", urgency: daysSinceContact > 14 ? "urgent" : "high" };
-    }
-
-    // Researched — ready for outreach
-    if (status === "researched") {
-      if (tier === "hot") return { action: "Send Personalized Email", reason: "Hot lead — ready for outreach", icon: "email", urgency: "high" };
-      return { action: "Send LinkedIn Message", reason: "Researched — initiate contact", icon: "linkedin", urgency: "medium" };
-    }
-
-    // No reply after contact
-    if (lead.contactStatus === "not_contacted" || lead.contactStatus === "neutral") {
-      if (daysSinceContact > 7) return { action: "Send Follow-up", reason: `Last contact ${daysSinceContact}d ago — follow up`, icon: "email", urgency: daysSinceContact > 14 ? "high" : "medium" };
-    }
-
-    // Nurture leads — low touch
-    if (status === "nurture") {
-      return { action: "Share Content/Article", reason: "Nurture — stay top of mind", icon: "proposal", urgency: "low" };
-    }
-
-    // Default
-    return { action: "Review & Plan Next Step", reason: "Assess current status", icon: "research", urgency: "low" };
-  };
+  // getRecommendedAction is now imported from LeadContextPanel
 
   // Handle lead updates from OutreachCommandCenter
   const handleUpdateLead = (leadId: string, updates: Partial<Lead>) => {
@@ -873,62 +828,7 @@ export default function Dashboard() {
     return true;
   });
 
-  // Avatar Initials
-  const Avatar = ({ name, size = 36 }: { name: string; size?: number }) => {
-    const initials = name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-    const colors = [
-      ["#e8f4fd", "#0077b5"], ["#fef2f2", "#dc2626"], ["#ecfdf5", "#059669"],
-      ["#f5f3ff", "#7c3aed"], ["#fffbeb", "#d97706"], ["#eff6ff", "#2563eb"],
-    ];
-    const idx = name.charCodeAt(0) % colors.length;
-    return (
-      <div style={{
-        width: size, height: size, borderRadius: "50%",
-        background: colors[idx][0], color: colors[idx][1],
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: size * 0.36, fontWeight: 700, letterSpacing: "-0.02em",
-        flexShrink: 0,
-      }}>
-        {initials}
-      </div>
-    );
-  };
-
-  // Score Ring
-  const ScoreRing = ({ score, size = 44 }: { score: number; size?: number }) => {
-    const radius = (size - 6) / 2;
-    const circumference = 2 * Math.PI * radius;
-    const offset = circumference - (score / 100) * circumference;
-    const color = score >= 70 ? "#e03131" : score >= 40 ? "#f59f00" : "#3b5bdb";
-
-    return (
-      <svg width={size} height={size} className="transform -rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#f1f3f5" strokeWidth="3" />
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth="3"
-          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" className="score-ring" />
-        <text x={size / 2} y={size / 2} textAnchor="middle" dominantBaseline="central"
-          fill={color} fontSize={size * 0.28} fontWeight="700" className="transform rotate-90" style={{ transformOrigin: "center" }}>
-          {score}
-        </text>
-      </svg>
-    );
-  };
-
-  // Channel indicator for leads
-  const ChannelIndicator = ({ lead }: { lead: Lead }) => {
-    const hasLinkedIn = lead.channels?.linkedin;
-    const hasEmail = lead.channels?.email;
-    if (hasLinkedIn && hasEmail) {
-      return <span className="channel-pill channel-both"><Linkedin className="w-3 h-3" /><AtSign className="w-3 h-3" /> Both</span>;
-    }
-    if (hasLinkedIn) {
-      return <span className="channel-pill channel-linkedin"><Linkedin className="w-3 h-3" /> LinkedIn</span>;
-    }
-    if (hasEmail) {
-      return <span className="channel-pill channel-email"><AtSign className="w-3 h-3" /> Email</span>;
-    }
-    return null;
-  };
+  // Avatar, ScoreRing, ChannelIndicator, getRecommendedAction are now imported from LeadContextPanel
 
   // Section titles / subtitles
   const sectionMeta: Record<SidebarSection, { title: string; subtitle: string }> = {
@@ -948,6 +848,9 @@ export default function Dashboard() {
     winloss: { title: "Win/Loss Intelligence", subtitle: "Analyze deal outcomes to improve your sales strategy" },
     notifications: { title: "Notifications", subtitle: "Stay on top of urgent signals and important updates" },
     events: { title: "Event Command Center", subtitle: "Manage tradeshow and conference outreach with territory tracking" },
+    agents: { title: "Agent Hub", subtitle: "Browse, create, and run AI agents built by your team" },
+    inbox: { title: "Inbox", subtitle: "All conversations across LinkedIn, Email, and SMS in one place" },
+    compliance: { title: "Compliance & Safety", subtitle: "Platform regulation compliance, rate limits, and consent tracking" },
   };
 
   // Show loading spinner while checking auth
@@ -1098,6 +1001,30 @@ export default function Dashboard() {
             className={`sidebar-item ${sidebarSection === "events" ? "active" : ""}`}>
             <Calendar className="w-5 h-5" />
             <span className="tooltip">Events</span>
+          </button>
+
+          {/* Agent Hub */}
+          <button onClick={() => navigateTo("agents")}
+            className={`sidebar-item ${sidebarSection === "agents" ? "active" : ""}`}>
+            <Bot className="w-5 h-5" />
+            <span className="tooltip">Agent Hub</span>
+          </button>
+
+          {/* Divider */}
+          <div style={{ height: 1, background: "var(--balboa-border-light)", margin: "12px 8px" }} />
+
+          {/* Inbox */}
+          <button onClick={() => navigateTo("inbox")}
+            className={`sidebar-item ${sidebarSection === "inbox" ? "active" : ""}`}>
+            <Mail className="w-5 h-5" />
+            <span className="tooltip">Inbox</span>
+          </button>
+
+          {/* Compliance */}
+          <button onClick={() => navigateTo("compliance")}
+            className={`sidebar-item ${sidebarSection === "compliance" ? "active" : ""}`}>
+            <Shield className="w-5 h-5" />
+            <span className="tooltip">Compliance</span>
           </button>
         </nav>
       </div>
@@ -1298,703 +1225,36 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Lead detail */}
+                {/* Lead detail — now using LeadContextPanel */}
                 {selectedLead && (
                   <div className="card fade-in" style={{ width: "55%", padding: "22px 24px", maxHeight: "calc(100vh - 240px)", overflowY: "auto" }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-                      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                        <Avatar name={`${selectedLead.firstName} ${selectedLead.lastName}`} size={48} />
-                        <div>
-                          <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--balboa-navy)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>{selectedLead.firstName} {selectedLead.lastName}</h2>
-                          <p style={{ fontSize: 13, color: "var(--balboa-text-secondary)", marginTop: 2 }}>{selectedLead.position}</p>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--balboa-blue)", marginTop: 1 }}>{selectedLead.company}</p>
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <ChannelIndicator lead={selectedLead} />
-                        <button onClick={() => setSelectedLead(null)} className="btn-ghost" style={{ padding: 4 }}>
-                          <XCircle className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Score + Pipeline merged row */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20, padding: "14px 16px", background: "var(--balboa-bg-alt)", borderRadius: 12, border: "1px solid var(--balboa-border-light)" }}>
-                      <ScoreRing score={selectedLead.icpScore?.overall || 0} size={48} />
-                      <VascoContextButton
-                        prompt={`Explain the ICP score breakdown for ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Their overall score is ${selectedLead.icpScore?.overall || 0} (tier: ${selectedLead.icpScore?.tier || "unknown"}). What does this score mean for prioritization? What factors are driving it up or down?`}
-                        tooltip="Ask Vasco about this ICP score"
-                        onClick={setVascoPrompt}
-                      />
-                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", flex: 1 }}>
-                        {(["new", "researched", "engaged", "opportunity", "nurture"] as const).map((s) => (
-                          <button key={s} onClick={() => updateLeadStatus(selectedLead.id, s)}
-                            style={{
-                              padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer",
-                              transition: "all 0.15s ease", letterSpacing: "-0.01em",
-                              ...(selectedLead.status === s
-                                ? { background: "var(--balboa-navy)", color: "white", boxShadow: "0 1px 3px rgba(30,42,94,0.2)" }
-                                : { background: "white", color: "var(--balboa-text-muted)", border: "1px solid var(--balboa-border)" }),
-                            }}>
-                            {s.charAt(0).toUpperCase() + s.slice(1)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* ⭐ Lead Summarizer (Phase 6) */}
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <LeadSummarizer lead={selectedLead} language={contentLanguage} />
-                        <VascoContextButton
-                          prompt={`Give me a complete summary analysis of ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Include their engagement history, sentiment, and recommended next steps.`}
-                          tooltip="Ask Vasco about this lead's history"
-                          onClick={setVascoPrompt}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Key info — top 2 signals + expandable details */}
-                    {selectedLead.icpScore?.signals && (
-                      <div style={{ marginBottom: 20 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                          <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                            Key Signals
-                          </h4>
-                          <VascoContextButton
-                            prompt={`Analyze the key signals and company intelligence for ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Signals: ${selectedLead.icpScore?.signals?.join(", ") || "none"}. Company: ${selectedLead.companyIntel?.industry || "unknown"} industry, ${selectedLead.companyIntel?.employeeCount || "unknown"} employees, revenue ${selectedLead.companyIntel?.estimatedRevenue || "unknown"}. What do these signals tell us about timing and approach?`}
-                            tooltip="Ask Vasco about these signals"
-                            onClick={setVascoPrompt}
-                          />
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {selectedLead.icpScore.signals.slice(0, 2).map((s, i) => (
-                            <div key={i} style={{ fontSize: 12, display: "flex", alignItems: "flex-start", gap: 8, color: "var(--balboa-text-secondary)", lineHeight: 1.4 }}>
-                              <CheckCircle className="w-3.5 h-3.5" style={{ color: "var(--balboa-green)", flexShrink: 0, marginTop: 1 }} /> {s}
-                            </div>
-                          ))}
-                        </div>
-                        {(selectedLead.icpScore.signals.length > 2 || selectedLead.companyIntel) && (
-                          <button onClick={() => setDetailExpanded(!detailExpanded)}
-                            className="btn-ghost" style={{ color: "var(--balboa-blue)", fontSize: 11, marginTop: 8 }}>
-                            <ChevronDown className="w-3 h-3" style={{ transform: detailExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
-                            {detailExpanded ? "Hide details" : "Show company intel & all signals"}
-                          </button>
-                        )}
-
-                        {/* Expanded section */}
-                        {detailExpanded && (
-                          <div className="fade-in" style={{ marginTop: 12 }}>
-                            {/* Remaining signals */}
-                            {selectedLead.icpScore.signals.length > 2 && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-                                {selectedLead.icpScore.signals.slice(2).map((s, i) => (
-                                  <div key={i} style={{ fontSize: 12, display: "flex", alignItems: "flex-start", gap: 8, color: "var(--balboa-text-secondary)", lineHeight: 1.4 }}>
-                                    <CheckCircle className="w-3.5 h-3.5" style={{ color: "var(--balboa-green)", flexShrink: 0, marginTop: 1 }} /> {s}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Company Intel */}
-                            {selectedLead.companyIntel && (
-                              <div style={{ borderRadius: 10, padding: 14, background: "var(--balboa-bg-alt)", border: "1px solid var(--balboa-border-light)", display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                                  <div><span style={{ color: "var(--balboa-text-muted)", fontWeight: 500 }}>Industry</span><br /><span style={{ fontWeight: 600 }}>{selectedLead.companyIntel.industry}</span></div>
-                                  <div><span style={{ color: "var(--balboa-text-muted)", fontWeight: 500 }}>Revenue</span><br /><span style={{ fontWeight: 600 }}>{selectedLead.companyIntel.estimatedRevenue}</span></div>
-                                  <div><span style={{ color: "var(--balboa-text-muted)", fontWeight: 500 }}>Employees</span><br /><span style={{ fontWeight: 600 }}>{selectedLead.companyIntel.employeeCount}</span></div>
-                                </div>
-                                {selectedLead.companyIntel.balboaFitReason && (
-                                  <div style={{ paddingTop: 8, borderTop: "1px solid var(--balboa-border-light)" }}>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--balboa-navy)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Balboa Fit</span>
-                                    <p style={{ marginTop: 4, lineHeight: 1.4 }}>{selectedLead.companyIntel.balboaFitReason}</p>
-                                  </div>
-                                )}
-                                {selectedLead.companyIntel.painPoints?.length > 0 && (
-                                  <div style={{ paddingTop: 8, borderTop: "1px solid var(--balboa-border-light)" }}>
-                                    <span style={{ color: "var(--balboa-text-muted)", fontWeight: 500 }}>Pain Points</span>
-                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
-                                      {selectedLead.companyIntel.painPoints.map((p, i) => (
-                                        <span key={i} className="badge badge-hot" style={{ fontSize: 10 }}>{p}</span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* 🔬 Deep Research Panel trigger (Phase 6) */}
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <button
-                          onClick={() => setShowDeepResearch(true)}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 6,
-                            padding: "8px 14px", borderRadius: 8,
-                            background: "linear-gradient(135deg, rgba(30,42,94,0.04), rgba(59,91,219,0.08))",
-                            border: "1px solid rgba(59,91,219,0.15)",
-                            cursor: "pointer", fontSize: 12, fontWeight: 600,
-                            color: "var(--balboa-navy)", transition: "all 0.15s ease",
-                          }}
-                        >
-                          <Radar className="w-3.5 h-3.5" style={{ color: "var(--balboa-blue)" }} />
-                          Deep Research
-                        </button>
-                        <VascoContextButton
-                          prompt={`Do a deep research analysis on ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Cover their role, company overview, industry trends, competitive landscape, and the best approach for outreach.`}
-                          tooltip="Ask Vasco for deep research"
-                          onClick={setVascoPrompt}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Call Outcomes (if lead has recent calls) */}
-                    {selectedLead.callLogs && selectedLead.callLogs.length > 0 && (
-                      <div style={{ marginBottom: 20 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                          <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                            <Phone className="w-3.5 h-3.5" style={{ color: "#059669" }} /> Call Outcomes
-                          </h4>
-                          <VascoContextButton
-                            prompt={`Analyze the call outcomes for ${selectedLead.firstName} ${selectedLead.lastName}. They have ${selectedLead.callLogs?.length || 0} call(s) logged. What patterns do you see? What should the next call strategy be? Any follow-up actions from the call results?`}
-                            tooltip="Ask Vasco about call outcomes"
-                            onClick={setVascoPrompt}
-                          />
-                        </div>
-                        {selectedLead.callLogs.slice(-1).map(call => (
-                          <div key={call.id} style={{ borderRadius: 10, padding: 12, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-                            <div style={{ fontSize: 11, marginBottom: 8, color: "var(--balboa-text-muted)", fontWeight: 500 }}>
-                              {call.platform.replace("_", " ")} &middot; {call.duration || "N/A"} &middot; {new Date(call.date).toLocaleDateString()}
-                            </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {call.outcomes.map((o, i) => (
-                                <span key={i} className={`outcome-chip ${o.completed ? "" : "active"}`} style={{ fontSize: 11, cursor: "default" }}>
-                                  {o.completed ? <CheckCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                                  {o.description}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Cross-Channel Activity Timeline — capped at 5 */}
-                    {selectedLead.touchpointTimeline && selectedLead.touchpointTimeline.length > 0 && (
-                      <div style={{ marginBottom: 20 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                          <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                            <Clock className="w-3.5 h-3.5" style={{ color: "var(--balboa-navy)" }} /> Activity Timeline
-                          </h4>
-                          <VascoContextButton
-                            prompt={`Analyze the activity timeline for ${selectedLead.firstName} ${selectedLead.lastName}. What patterns do you see in their engagement? Are there gaps in communication? What should be the next touchpoint?`}
-                            tooltip="Ask Vasco about activity patterns"
-                            onClick={setVascoPrompt}
-                          />
-                        </div>
-                        <div style={{ background: "var(--balboa-bg-alt)", borderRadius: 10, padding: 14, border: "1px solid var(--balboa-border-light)" }}>
-                          <ActivityTimeline events={selectedLead.touchpointTimeline.slice(-5)} />
-                          {selectedLead.touchpointTimeline.length > 5 && (
-                            <button className="btn-ghost" style={{ color: "var(--balboa-blue)", fontSize: 11, marginTop: 8 }}
-                              onClick={() => {/* Could expand to full timeline */}}>
-                              Show all {selectedLead.touchpointTimeline.length} events
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Quick Note */}
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                        <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                          <StickyNote className="w-3.5 h-3.5" style={{ color: "#d97706" }} /> Quick Note
-                        </h4>
-                        <VascoContextButton
-                          prompt={`Review the notes for ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Notes: ${selectedLead.notes || "none yet"}. What insights can you draw from these notes? What should I note down next?`}
-                          tooltip="Ask Vasco about notes"
-                          onClick={setVascoPrompt}
-                        />
-                      </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <input
-                          type="text"
-                          placeholder="Add a note about this lead..."
-                          value={quickNote}
-                          onChange={e => setQuickNote(e.target.value)}
-                          onKeyDown={e => { if (e.key === "Enter" && quickNote.trim()) handleAddNote(selectedLead.id, quickNote); }}
-                          style={{
-                            flex: 1, fontSize: 12, padding: "8px 12px", borderRadius: 8,
-                            border: "1px solid var(--balboa-border)", outline: "none",
-                            background: "var(--balboa-bg-alt)", color: "var(--balboa-text-secondary)",
-                          }}
-                        />
-                        <button
-                          onClick={() => handleAddNote(selectedLead.id, quickNote)}
-                          disabled={!quickNote.trim()}
-                          className="btn-primary"
-                          style={{ fontSize: 11, padding: "8px 14px", opacity: quickNote.trim() ? 1 : 0.4 }}
-                        >
-                          Save
-                        </button>
-                      </div>
-                      {/* Existing notes from lead.notes field */}
-                      {selectedLead.notes && (
-                        <div style={{
-                          marginTop: 8, padding: "8px 12px", borderRadius: 8,
-                          background: "#fffbeb", border: "1px solid #fde68a", fontSize: 12,
-                          color: "#92400e", lineHeight: 1.4, fontStyle: "italic",
-                        }}>
-                          <span style={{ fontWeight: 600, fontStyle: "normal" }}>Notes: </span>
-                          {selectedLead.notes}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* ⚡ Quick Actions — Recommended next step + action buttons */}
-                    {(() => {
-                      const rec = getRecommendedAction(selectedLead);
-                      const urgencyColors: Record<string, { bg: string; border: string; text: string; dot: string }> = {
-                        urgent: { bg: "#fef2f2", border: "#fca5a5", text: "#991b1b", dot: "#dc2626" },
-                        high: { bg: "#fff7ed", border: "#fdba74", text: "#9a3412", dot: "#f97316" },
-                        medium: { bg: "#f0f4ff", border: "#93b4fd", text: "#1e3a8a", dot: "#3b82f6" },
-                        low: { bg: "var(--balboa-bg-alt)", border: "var(--balboa-border)", text: "var(--balboa-text-secondary)", dot: "#94a3b8" },
-                      };
-                      const uc = urgencyColors[rec.urgency] || urgencyColors.medium;
-
-                      return (
-                        <div style={{ marginBottom: 20 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                            <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                              <Zap className="w-3.5 h-3.5" style={{ color: "var(--balboa-orange)" }} /> Quick Actions
-                            </h4>
-                            <VascoContextButton
-                              prompt={`What is the best next action for ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}? Consider their ICP score (${selectedLead.icpScore?.overall || 0}), status (${selectedLead.status}), and contact status (${selectedLead.contactStatus}). Recommend the optimal channel, timing, and message approach.`}
-                              tooltip="Ask Vasco for action recommendations"
-                              onClick={setVascoPrompt}
-                            />
-                          </div>
-
-                          {/* Recommended action banner */}
-                          <div style={{
-                            padding: "12px 14px", borderRadius: 10, marginBottom: 12,
-                            background: uc.bg, border: `1px solid ${uc.border}`,
-                            display: "flex", alignItems: "center", gap: 10,
-                          }}>
-                            <div style={{
-                              width: 8, height: 8, borderRadius: "50%",
-                              background: uc.dot, flexShrink: 0,
-                              boxShadow: rec.urgency === "urgent" ? `0 0 6px ${uc.dot}` : "none",
-                              animation: rec.urgency === "urgent" ? "pulse 2s infinite" : "none",
-                            }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: 12, fontWeight: 700, color: uc.text, lineHeight: 1.3 }}>
-                                {rec.urgency === "urgent" ? "🔴 " : rec.urgency === "high" ? "🟠 " : ""}{rec.action}
-                              </p>
-                              <p style={{ fontSize: 11, color: uc.text, opacity: 0.8, marginTop: 2, lineHeight: 1.3 }}>
-                                {rec.reason}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Action buttons grid */}
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-                            {/* Send Email */}
-                            <button onClick={() => setShowEmailPopup(true)}
-                              disabled={!!generatingAction}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10,
-                                background: rec.icon === "email" ? "linear-gradient(135deg, var(--balboa-navy), var(--balboa-blue))" : "white",
-                                color: rec.icon === "email" ? "white" : "var(--balboa-navy)",
-                                border: rec.icon === "email" ? "none" : "1px solid var(--balboa-border)",
-                                cursor: generatingAction ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, transition: "all 0.2s ease",
-                                boxShadow: rec.icon === "email" ? "0 2px 8px rgba(30,42,94,0.25)" : "none",
-                                opacity: generatingAction ? 0.5 : 1,
-                              }}>
-                              <Mail className="w-4 h-4" style={{ flexShrink: 0, opacity: rec.icon === "email" ? 1 : 0.7 }} />
-                              <span>Send Email</span>
-                            </button>
-
-                            {/* Send LinkedIn Message */}
-                            <button onClick={() => setShowLinkedInPopup(true)}
-                              disabled={!!generatingAction}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10,
-                                background: rec.icon === "linkedin" ? "linear-gradient(135deg, #0077b5, #00a0dc)" : "white",
-                                color: rec.icon === "linkedin" ? "white" : "#0077b5",
-                                border: rec.icon === "linkedin" ? "none" : "1px solid #b3d4fc",
-                                cursor: generatingAction ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, transition: "all 0.2s ease",
-                                boxShadow: rec.icon === "linkedin" ? "0 2px 8px rgba(0,119,181,0.25)" : "none",
-                                opacity: generatingAction ? 0.5 : 1,
-                              }}>
-                              <Linkedin className="w-4 h-4" style={{ flexShrink: 0, opacity: rec.icon === "linkedin" ? 1 : 0.7 }} />
-                              <span>LinkedIn Msg</span>
-                            </button>
-
-                            {/* Schedule Meeting */}
-                            <button onClick={() => setShowMeetingScheduler(true)}
-                              disabled={!!generatingAction}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10,
-                                background: rec.icon === "meeting" ? "linear-gradient(135deg, #059669, #10b981)" : "white",
-                                color: rec.icon === "meeting" ? "white" : "#059669",
-                                border: rec.icon === "meeting" ? "none" : "1px solid #a7f3d0",
-                                cursor: generatingAction ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, transition: "all 0.2s ease",
-                                boxShadow: rec.icon === "meeting" ? "0 2px 8px rgba(5,150,105,0.25)" : "none",
-                                opacity: generatingAction ? 0.5 : 1,
-                              }}>
-                              <Calendar className="w-4 h-4" style={{ flexShrink: 0, opacity: rec.icon === "meeting" ? 1 : 0.7 }} />
-                              <span>Schedule Meeting</span>
-                            </button>
-
-                            {/* Send Proposal/Deck */}
-                            <button onClick={() => setShowProposalPopup(true)}
-                              disabled={!!generatingAction}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10,
-                                background: rec.icon === "proposal" ? "linear-gradient(135deg, #7c3aed, #a855f7)" : "white",
-                                color: rec.icon === "proposal" ? "white" : "#7c3aed",
-                                border: rec.icon === "proposal" ? "none" : "1px solid #c4b5fd",
-                                cursor: generatingAction ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, transition: "all 0.2s ease",
-                                boxShadow: rec.icon === "proposal" ? "0 2px 8px rgba(124,58,237,0.25)" : "none",
-                                opacity: generatingAction ? 0.5 : 1,
-                              }}>
-                              <FileText className="w-4 h-4" style={{ flexShrink: 0, opacity: rec.icon === "proposal" ? 1 : 0.7 }} />
-                              <span>Send Proposal</span>
-                            </button>
-                          </div>
-
-                          {/* Sales Tools row — Video + Prep Kit */}
-                          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                            <button onClick={() => setShowVideoPrep(true)}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, flex: 1,
-                                background: "var(--balboa-bg-alt)", color: "var(--balboa-navy)",
-                                border: "1px solid var(--balboa-border)", cursor: "pointer",
-                                fontSize: 11, fontWeight: 600, transition: "all 0.2s ease",
-                              }}>
-                              <Video className="w-3.5 h-3.5" style={{ opacity: 0.7 }} /> Create Video
-                            </button>
-                            <button onClick={() => setShowPrepKit(true)}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, flex: 1,
-                                background: "var(--balboa-bg-alt)", color: "var(--balboa-navy)",
-                                border: "1px solid var(--balboa-border)", cursor: "pointer",
-                                fontSize: 11, fontWeight: 600, transition: "all 0.2s ease",
-                              }}>
-                              <BookOpen className="w-3.5 h-3.5" style={{ opacity: 0.7 }} /> Prep Kit
-                            </button>
-                            <LinkedInRedirectButton lead={selectedLead} onCopy={copyToClipboard} style={{ flex: 1 }} />
-                          </div>
-
-                          {/* Video preps count + Prep Kit panel */}
-                          {selectedLead.videoPreps && selectedLead.videoPreps.length > 0 && (
-                            <p style={{ fontSize: 11, marginTop: 4, display: "flex", alignItems: "center", gap: 4, color: "var(--balboa-text-muted)" }}>
-                              <CheckCircle className="w-3 h-3" style={{ color: "var(--balboa-green)" }} />
-                              {selectedLead.videoPreps.length} video prep{selectedLead.videoPreps.length > 1 ? "s" : ""} saved
-                            </p>
-                          )}
-                          <PrepKitPanel
-                            kits={selectedLead.prepKits || []}
-                            onGenerateNew={() => setShowPrepKit(true)}
-                          />
-                        </div>
-                      );
-                    })()}
-
-                    {/* 🧠 Lead Intelligence — AI-Powered Analysis */}
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                            <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--balboa-blue)" }} /> Lead Intelligence
-                          </h4>
-                          <VascoContextButton
-                            prompt={`Provide strategic intelligence on ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. What is the best channel, timing, and messaging approach? What are the expected outcomes based on their profile?`}
-                            tooltip="Ask Vasco for lead intelligence"
-                            onClick={setVascoPrompt}
-                          />
-                        </div>
-                        <button
-                          onClick={() => analyzeLead(selectedLead)}
-                          disabled={analyzingLead}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 5,
-                            padding: "6px 14px", borderRadius: 8,
-                            background: analyzingLead ? "var(--balboa-bg-alt)" : "linear-gradient(135deg, var(--balboa-navy), var(--balboa-blue))",
-                            color: analyzingLead ? "var(--balboa-text-muted)" : "white",
-                            border: "none", cursor: analyzingLead ? "not-allowed" : "pointer",
-                            fontSize: 11, fontWeight: 700, transition: "all 0.2s ease",
-                            boxShadow: analyzingLead ? "none" : "0 2px 8px rgba(30,42,94,0.20)",
-                          }}
-                        >
-                          {analyzingLead ? (
-                            <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analyzing...</>
-                          ) : (
-                            <><Target className="w-3.5 h-3.5" /> {leadAnalysis ? "Re-analyze" : "Analyze Lead"}</>
-                          )}
-                        </button>
-                      </div>
-
-                      {!leadAnalysis && !analyzingLead && (
-                        <div style={{
-                          padding: "16px 18px", borderRadius: 12,
-                          background: "linear-gradient(135deg, rgba(30,42,94,0.03), rgba(59,91,219,0.05))",
-                          border: "1px dashed var(--balboa-border)",
-                          textAlign: "center",
-                        }}>
-                          <Sparkles className="w-5 h-5" style={{ color: "var(--balboa-blue)", opacity: 0.5, margin: "0 auto 8px" }} />
-                          <p style={{ fontSize: 12, color: "var(--balboa-text-muted)", lineHeight: 1.5 }}>
-                            Click <strong>Analyze Lead</strong> to get AI-powered recommendations based on playbook intelligence — best channel, optimal timing, and expected outcomes.
-                          </p>
-                        </div>
-                      )}
-
-                      {analyzingLead && (
-                        <div style={{
-                          padding: "20px", borderRadius: 12,
-                          background: "var(--balboa-bg-alt)", border: "1px solid var(--balboa-border-light)",
-                          textAlign: "center",
-                        }}>
-                          <div className="w-8 h-8 border-2 rounded-full animate-spin mx-auto mb-3"
-                            style={{ borderColor: "var(--balboa-border)", borderTopColor: "var(--balboa-navy)" }} />
-                          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--balboa-navy)" }}>Analyzing {selectedLead.firstName} with Playbook Intelligence...</p>
-                          <p style={{ fontSize: 11, color: "var(--balboa-text-muted)", marginTop: 4 }}>Checking best channel, timing, and expected outcomes</p>
-                        </div>
-                      )}
-
-                      {leadAnalysis && !analyzingLead && (
-                        <div style={{
-                          borderRadius: 12, overflow: "hidden",
-                          border: "1px solid var(--balboa-border-light)",
-                          background: "white",
-                        }}>
-                          {/* Strategy recommendation */}
-                          <div style={{
-                            padding: "14px 16px",
-                            background: leadAnalysis.urgency === "immediate" ? "linear-gradient(135deg, #fef2f2, #fff1f2)"
-                              : leadAnalysis.urgency === "high" ? "linear-gradient(135deg, #fff7ed, #fffbeb)"
-                              : "linear-gradient(135deg, #f0f4ff, #eff6ff)",
-                            borderBottom: "1px solid var(--balboa-border-light)",
-                          }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                              <span style={{
-                                fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em",
-                                padding: "2px 8px", borderRadius: 4,
-                                background: leadAnalysis.urgency === "immediate" ? "#dc2626" : leadAnalysis.urgency === "high" ? "#f97316" : "#3b82f6",
-                                color: "white",
-                              }}>
-                                {leadAnalysis.urgency}
-                              </span>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--balboa-navy)" }}>
-                                {leadAnalysis.recommendedAction}
-                              </span>
-                            </div>
-                            <p style={{ fontSize: 12, color: "var(--balboa-text-secondary)", lineHeight: 1.5 }}>
-                              {leadAnalysis.reasoning}
-                            </p>
-                          </div>
-
-                          {/* Metrics grid */}
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
-                            {/* Best Channel */}
-                            <div style={{ padding: "12px 16px", borderRight: "1px solid var(--balboa-border-light)", borderBottom: "1px solid var(--balboa-border-light)" }}>
-                              <p style={{ fontSize: 10, fontWeight: 700, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Best Channel</p>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                {leadAnalysis.recommendedChannel === "email"
-                                  ? <Mail className="w-4 h-4" style={{ color: "var(--balboa-navy)" }} />
-                                  : <Linkedin className="w-4 h-4" style={{ color: "#0077b5" }} />}
-                                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--balboa-navy)", textTransform: "capitalize" }}>
-                                  {leadAnalysis.recommendedChannel}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Best Timing */}
-                            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--balboa-border-light)" }}>
-                              <p style={{ fontSize: 10, fontWeight: 700, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Best Timing</p>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <Clock className="w-4 h-4" style={{ color: "#059669" }} />
-                                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--balboa-navy)" }}>
-                                  {leadAnalysis.recommendedTiming}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Expected Outcomes */}
-                            <div style={{ padding: "12px 16px", gridColumn: "1 / -1" }}>
-                              <p style={{ fontSize: 10, fontWeight: 700, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Expected Outcomes</p>
-                              <div style={{ display: "flex", gap: 16 }}>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                                    <span style={{ fontSize: 20, fontWeight: 800, color: "var(--balboa-navy)" }}>
-                                      {Math.round((leadAnalysis.expectedOutcomes?.replyRate || 0) * 100)}%
-                                    </span>
-                                  </div>
-                                  <p style={{ fontSize: 10, color: "var(--balboa-text-muted)", fontWeight: 600 }}>Reply Rate</p>
-                                  <div className="rate-bar-track" style={{ marginTop: 4, height: 4 }}>
-                                    <div className="rate-bar-fill" style={{ width: `${(leadAnalysis.expectedOutcomes?.replyRate || 0) * 100}%`, background: "#059669" }} />
-                                  </div>
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                                    <span style={{ fontSize: 20, fontWeight: 800, color: "var(--balboa-navy)" }}>
-                                      {Math.round((leadAnalysis.expectedOutcomes?.meetingRate || 0) * 100)}%
-                                    </span>
-                                  </div>
-                                  <p style={{ fontSize: 10, color: "var(--balboa-text-muted)", fontWeight: 600 }}>Meeting Rate</p>
-                                  <div className="rate-bar-track" style={{ marginTop: 4, height: 4 }}>
-                                    <div className="rate-bar-fill" style={{ width: `${(leadAnalysis.expectedOutcomes?.meetingRate || 0) * 100}%`, background: "#3b82f6" }} />
-                                  </div>
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                                    <span style={{ fontSize: 20, fontWeight: 800, color: "var(--balboa-navy)" }}>
-                                      {Math.round((leadAnalysis.expectedOutcomes?.closeRate || 0) * 100)}%
-                                    </span>
-                                  </div>
-                                  <p style={{ fontSize: 10, color: "var(--balboa-text-muted)", fontWeight: 600 }}>Close Rate</p>
-                                  <div className="rate-bar-track" style={{ marginTop: 4, height: 4 }}>
-                                    <div className="rate-bar-fill" style={{ width: `${(leadAnalysis.expectedOutcomes?.closeRate || 0) * 100}%`, background: "#7c3aed" }} />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Quick action from analysis */}
-                          <div style={{ padding: "10px 16px", borderTop: "1px solid var(--balboa-border-light)", background: "var(--balboa-bg-alt)", display: "flex", gap: 8 }}>
-                            <button
-                              onClick={() => generateMessage(selectedLead,
-                                leadAnalysis.recommendedChannel === "email" ? "email_initial" : "connection_followup",
-                                leadAnalysis.recommendedChannel)}
-                              disabled={!!generatingAction}
-                              style={{
-                                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                                padding: "8px 12px", borderRadius: 8,
-                                background: "linear-gradient(135deg, var(--balboa-navy), var(--balboa-blue))",
-                                color: "white", border: "none",
-                                cursor: generatingAction ? "not-allowed" : "pointer",
-                                fontSize: 12, fontWeight: 700, transition: "all 0.2s ease",
-                                boxShadow: "0 2px 8px rgba(30,42,94,0.20)",
-                                opacity: generatingAction ? 0.6 : 1,
-                              }}
-                            >
-                              {generatingAction ? (
-                                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Generating...</>
-                              ) : (
-                                <><Sparkles className="w-3.5 h-3.5" /> Generate {leadAnalysis.recommendedChannel === "email" ? "Email" : "LinkedIn"} Draft</>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 📞 Cold Call Script (Phase 6) */}
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                        <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                          <Phone className="w-3.5 h-3.5" style={{ color: "#7c3aed" }} /> Cold Call Script
-                        </h4>
-                        <VascoContextButton
-                          prompt={`Help me prepare for a cold call with ${selectedLead.firstName} ${selectedLead.lastName}, ${selectedLead.position} at ${selectedLead.company}. Their ICP score is ${selectedLead.icpScore?.overall || 0} (${selectedLead.icpScore?.tier || "unknown"}). Industry: ${selectedLead.companyIntel?.industry || "unknown"}. What's the best opener? What objections should I expect? What value props should I lead with?`}
-                          tooltip="Ask Vasco for call prep"
-                          onClick={setVascoPrompt}
-                        />
-                      </div>
-                      <ColdCallScript
-                        lead={selectedLead}
-                        language={contentLanguage}
-                        onCallStarted={(lead) => {
-                          trackEventClient({
-                            eventCategory: "call",
-                            eventAction: "click_to_call",
-                            leadId: lead.id,
-                            channel: "call",
-                            leadTier: lead.icpScore?.tier,
-                          });
-                          setToastMessage(`Initiating call to ${lead.firstName}...`);
-                          setTimeout(() => setToastMessage(null), 3000);
-                        }}
-                      />
-                    </div>
-
-                    {/* Battle Cards */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                      <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                        🛡️ Battle Cards
-                      </h4>
-                      <VascoContextButton
-                        prompt={`Generate competitive intelligence for selling to ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company} (${selectedLead.companyIntel?.industry || "unknown"} industry). Who are the likely competitors they're evaluating? What are our key differentiators? Give me talking points to win against each competitor.`}
-                        tooltip="Ask Vasco for competitive intel"
-                        onClick={setVascoPrompt}
-                      />
-                    </div>
-                    <BattleCardPanel
-                      lead={selectedLead}
-                      cards={selectedLead.battleCards || []}
-                      onGenerate={(competitor) => handleBattleCardGenerate(selectedLead.id, competitor)}
-                    />
-
-                    {/* Cross-Channel Warning */}
-                    <CrossChannelWarning lead={selectedLead} currentChannel="linkedin" />
-
-                    {/* Draft Messages — DraftApprovalPanel */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <VascoContextButton
-                          prompt={`Review all my draft messages for ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. I have ${selectedLead.draftMessages?.length || 0} draft(s). Analyze the messaging quality, suggest improvements, and tell me which draft should be sent first and why. Consider the lead's ICP tier (${selectedLead.icpScore?.tier || "unknown"}) and status (${selectedLead.status}).`}
-                          tooltip="Ask Vasco to review drafts"
-                          onClick={setVascoPrompt}
-                        />
-                      </div>
-                      <LanguageSelector value={contentLanguage} onChange={setContentLanguage} />
-                    </div>
-                    <DraftApprovalPanel
-                      drafts={selectedLead.draftMessages}
-                      lead={selectedLead}
-                      onApprove={(id) => updateDraftStatus(selectedLead.id, id, "approved")}
-                      onReject={(id) => updateDraftStatus(selectedLead.id, id, "rejected")}
-                      onSendViaEmail={(d) => {
-                        setPopupPrefill({ subject: d.subject, body: d.body, draftId: d.id });
-                        setShowEmailPopup(true);
-                      }}
-                      onSendViaLinkedIn={(d) => {
-                        setPopupPrefill({ body: d.body, draftId: d.id });
-                        setShowLinkedInPopup(true);
-                      }}
-                      onCopy={copyToClipboard}
-                      onGenerateLinkedIn={() => generateMessage(selectedLead, "connection_followup", "linkedin")}
-                      onGenerateEmail={() => generateMessage(selectedLead, "email_initial", "email")}
-                      onGenerateProposal={() => setShowProposalPopup(true)}
-                      generatingAction={generatingAction}
-                    />
-
-                    {/* 💬 Communication Hub (Phase 6) — replaces OutreachActivitySummary */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                      <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                        💬 Communication History
-                      </h4>
-                      <VascoContextButton
-                        prompt={`Analyze the full communication history with ${selectedLead.firstName} ${selectedLead.lastName} at ${selectedLead.company}. Look at all channels (email, LinkedIn, SMS, WhatsApp, calls). What's the engagement pattern? Are there gaps in communication? What's the sentiment trend? What should be the next touchpoint and when?`}
-                        tooltip="Ask Vasco about communication patterns"
-                        onClick={setVascoPrompt}
-                      />
-                    </div>
-                    <CommunicationHub
+                    <LeadContextPanel
                       lead={selectedLead}
                       communications={communications[selectedLead.id] || []}
+                      language={contentLanguage}
+                      mode="full"
+                      onClose={() => setSelectedLead(null)}
+                      onAskVasco={setVascoPrompt}
+                      onUpdateLeadStatus={updateLeadStatus}
+                      onAddNote={handleAddNote}
+                      onAnalyzeLead={analyzeLead}
+                      onGenerateMessage={generateMessage}
+                      onUpdateDraftStatus={updateDraftStatus}
+                      onBattleCardGenerate={handleBattleCardGenerate}
+                      onCopyMessage={copyToClipboard}
+                      onOpenEmailPopup={(prefill) => { if (prefill) setPopupPrefill(prefill); setShowEmailPopup(true); }}
+                      onOpenLinkedInPopup={(prefill) => { if (prefill) setPopupPrefill(prefill as { body?: string; draftId?: string }); setShowLinkedInPopup(true); }}
+                      onOpenProposalPopup={() => setShowProposalPopup(true)}
+                      onOpenVideoPrep={() => setShowVideoPrep(true)}
+                      onOpenPrepKit={() => setShowPrepKit(true)}
+                      onOpenMeetingScheduler={() => setShowMeetingScheduler(true)}
+                      onOpenDeepResearch={() => setShowDeepResearch(true)}
+                      generatingAction={generatingAction}
+                      leadAnalysis={leadAnalysis}
+                      analyzingLead={analyzingLead}
+                      contentLanguage={contentLanguage}
+                      onLanguageChange={setContentLanguage}
                     />
-
-                    {/* Outreach Activity Summary (fallback when no communication data) */}
-                    {(!communications[selectedLead.id] || communications[selectedLead.id].length === 0) && (
-                      <OutreachActivitySummary lead={selectedLead} />
-                    )}
                   </div>
                 )}
               </div>
@@ -2095,6 +1355,34 @@ export default function Dashboard() {
               onNavigateToLead={handleNavigateToLead}
               generatingForLeadId={generatingForLeadId}
               contentLanguage={contentLanguage}
+              renderLeadContext={(lead) => (
+                <LeadContextPanel
+                  lead={lead}
+                  communications={communications[lead.id] || []}
+                  language={contentLanguage}
+                  mode="outreach-sidebar"
+                  onAskVasco={setVascoPrompt}
+                  onUpdateLeadStatus={updateLeadStatus}
+                  onAddNote={handleAddNote}
+                  onAnalyzeLead={analyzeLead}
+                  onGenerateMessage={generateMessage}
+                  onUpdateDraftStatus={updateDraftStatus}
+                  onBattleCardGenerate={handleBattleCardGenerate}
+                  onCopyMessage={copyToClipboard}
+                  onOpenEmailPopup={(prefill) => { if (prefill) setPopupPrefill(prefill); setShowEmailPopup(true); }}
+                  onOpenLinkedInPopup={(prefill) => { if (prefill) setPopupPrefill(prefill as { body?: string; draftId?: string }); setShowLinkedInPopup(true); }}
+                  onOpenProposalPopup={() => setShowProposalPopup(true)}
+                  onOpenVideoPrep={() => setShowVideoPrep(true)}
+                  onOpenPrepKit={() => setShowPrepKit(true)}
+                  onOpenMeetingScheduler={() => setShowMeetingScheduler(true)}
+                  onOpenDeepResearch={() => setShowDeepResearch(true)}
+                  generatingAction={generatingAction}
+                  leadAnalysis={leadAnalysis}
+                  analyzingLead={analyzingLead}
+                  contentLanguage={contentLanguage}
+                  onLanguageChange={setContentLanguage}
+                />
+              )}
             />
           </div>
         )}
@@ -2221,6 +1509,43 @@ export default function Dashboard() {
               events={events}
               leads={leads}
               onNavigateToLead={handleNavigateToLead}
+              language={contentLanguage}
+            />
+          </div>
+        )}
+
+        {/* === AGENT HUB SECTION === */}
+        {sidebarSection === "agents" && (
+          <div className="p-6">
+            <AgentHubSection
+              leads={leads}
+              selectedLead={selectedLead}
+              language={contentLanguage}
+            />
+          </div>
+        )}
+
+        {/* === INBOX SECTION === */}
+        {sidebarSection === "inbox" && (
+          <div className="p-6" style={{ height: "calc(100vh - 80px)" }}>
+            <InboxSection
+              leads={leads}
+              communications={communications}
+              contentLanguage={contentLanguage}
+              onNavigateToLead={handleNavigateToLead}
+              onGenerateMessage={generateMessage}
+              onAskVasco={setVascoPrompt}
+              onCopyMessage={copyToClipboard}
+              generatingForLeadId={generatingForLeadId}
+            />
+          </div>
+        )}
+
+        {/* === COMPLIANCE SECTION === */}
+        {sidebarSection === "compliance" && (
+          <div className="p-6">
+            <ComplianceDashboard
+              leads={leads}
               language={contentLanguage}
             />
           </div>

@@ -23,6 +23,10 @@ export interface BalboaFeatures {
   dataSource: "mock" | "database" | "hybrid";
   /** Has the production launch switch been flipped? */
   launchSwitchActive: boolean;
+  /** Are compliance checks enabled (rate limits, CAN-SPAM, GDPR)? */
+  complianceEnabled: boolean;
+  /** Block sends when compliance checks fail? (false = warn only) */
+  complianceBlockOnFail: boolean;
 }
 
 export interface BalboaConfig {
@@ -61,6 +65,10 @@ function getConfig(): BalboaConfig {
       // Sandbox always uses mock data; production uses database
       dataSource: isSandbox ? "mock" : "database",
       launchSwitchActive: launchSwitch,
+      // Compliance is always enabled — protects against platform bans
+      complianceEnabled: true,
+      // In production, block sends that fail compliance; sandbox warns only
+      complianceBlockOnFail: !isSandbox,
     },
     integrations: {
       linkedin: {

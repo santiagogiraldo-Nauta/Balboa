@@ -1,6 +1,9 @@
 // Outreach safety gate — routes outreach through approval queue in production
 import { SupabaseClient } from "@supabase/supabase-js";
 import { config } from "./config";
+import { runComplianceChecks, getComplianceSummary } from "./compliance";
+import type { ComplianceCheckResult } from "./compliance";
+import { getRateLimitCounts, getLeadConsent } from "./db-compliance";
 
 export type OutreachStatus = "pending_approval" | "approved" | "rejected" | "sent" | "cancelled";
 
@@ -10,6 +13,8 @@ export interface QueueResult {
   sent?: boolean;
   sandbox?: boolean;
   message?: string;
+  blocked?: boolean;
+  complianceIssues?: ComplianceCheckResult[];
 }
 
 export interface OutreachParams {
@@ -32,6 +37,59 @@ export async function queueOutreach(
   userId: string,
   params: OutreachParams
 ): Promise<QueueResult> {
+  // ── Compliance checks (run in all environments) ──
+  if (config.features.complianceEnabled) {
+    try {
+      // Gather rate limit counts and consent data in parallel
+      const [messagesToday, connectionsToday, connectionsThisWeek, consentRecords] = await Promise.all([
+        getRateLimitCounts(supabase, userId, params.channel, "day"),
+        params.channel === "linkedin" ? getRateLimitCounts(supabase, userId, "linkedin", "day") : Promise.resolve(0),
+        params.channel === "linkedin" ? getRateLimitCounts(supabase, userId, "linkedin", "week") : Promise.resolve(0),
+        getLeadConsent(supabase, userId, params.leadId),
+      ]);
+
+      // Derive consent flags from records
+      const channelConsent = consentRecords.filter(c => c.channel === params.channel);
+      const hasOptIn = channelConsent.some(c => c.consentType === "opt_in" || c.consentType === "gdpr_consent");
+      const hasUnsubscribed = channelConsent.some(c => c.consentType === "opt_out" || c.consentType === "unsubscribe");
+      const gdprConsent = channelConsent.some(c => c.consentType === "gdpr_consent");
+
+      const complianceResults = runComplianceChecks({
+        channel: params.channel,
+        leadId: params.leadId,
+        userId,
+        messageBody: params.body,
+        messageSubject: params.subject,
+        messagesToday,
+        connectionsToday,
+        connectionsThisWeek,
+        hasOptIn,
+        hasUnsubscribed,
+        gdprConsent,
+        hasUnsubscribeLink: params.body?.includes("unsubscribe"),
+        hasPhysicalAddress: params.body?.length > 200, // heuristic — real check in compliance engine
+        senderIdentified: true,
+        isPersonalized: (params.body?.length || 0) > 50,
+      });
+
+      const summary = getComplianceSummary(complianceResults);
+
+      // Block if compliance fails and blocking is enabled
+      if (!summary.canSend && config.features.complianceBlockOnFail) {
+        return {
+          queued: false,
+          sent: false,
+          blocked: true,
+          complianceIssues: complianceResults,
+          message: `Blocked by compliance: ${summary.blockers.map(b => b.message).join("; ")}`,
+        };
+      }
+    } catch (err) {
+      // Don't block sends if compliance check itself fails — log and continue
+      console.error("[outreach-gate] Compliance check error:", err);
+    }
+  }
+
   // Sandbox: simulate immediate send
   if (config.isSandbox) {
     return {

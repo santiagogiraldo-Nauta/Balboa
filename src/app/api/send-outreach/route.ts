@@ -5,6 +5,7 @@ import { getLeads } from "@/lib/db";
 import { trackEvent } from "@/lib/tracking";
 import { config } from "@/lib/config";
 import { queueOutreach } from "@/lib/outreach-gate";
+import { recordComplianceEvent } from "@/lib/db-compliance";
 
 export async function POST(req: NextRequest) {
   try {
@@ -50,6 +51,26 @@ export async function POST(req: NextRequest) {
       subject,
       body: message,
     });
+
+    // If blocked by compliance, return with compliance issues
+    if (gateResult.blocked) {
+      // Record compliance block event (fire-and-forget)
+      recordComplianceEvent(supabase, user.id, {
+        leadId,
+        channel,
+        eventType: "compliance_block",
+        metadata: {
+          issues: gateResult.complianceIssues?.map(i => ({ rule: i.ruleId, message: i.message })),
+        },
+      });
+
+      return NextResponse.json({
+        success: false,
+        blocked: true,
+        complianceIssues: gateResult.complianceIssues,
+        message: gateResult.message,
+      }, { status: 422 });
+    }
 
     // If queued for approval, return early (don't log as sent yet)
     if (gateResult.queued) {
@@ -120,6 +141,14 @@ export async function POST(req: NextRequest) {
       leadPosition: lead.position,
       sequenceNumber: (lead.draftMessages?.filter((d) => d.status === "sent").length || 0) + 1,
       source: "api",
+    });
+
+    // Record compliance event for rate limit tracking (fire-and-forget)
+    recordComplianceEvent(supabase, user.id, {
+      leadId,
+      channel,
+      eventType: "message_sent",
+      metadata: { subject, messageLength: message?.length },
     });
 
     return NextResponse.json({

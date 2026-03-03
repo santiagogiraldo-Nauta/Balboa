@@ -26,7 +26,8 @@ export type EventCategory =
   | "navigation"
   | "team"
   | "event"         // Event Command Center
-  | "communication"; // Communication Hub
+  | "communication" // Communication Hub
+  | "agent";        // Agent Hub
 
 export type LeadAction =
   | "csv_imported"
@@ -153,6 +154,17 @@ export type NavigationAction =
 export type TeamAction =
   | "ae_performance_viewed";
 
+export type AgentAction =
+  | "agent_executed"
+  | "agent_failed"
+  | "agent_created"
+  | "agent_updated"
+  | "agent_deleted"
+  | "agent_result_viewed"
+  | "agent_hub_opened"
+  | "pipeline_executed"
+  | "pipeline_failed";
+
 export type EventAction =
   | LeadAction
   | OutreachAction
@@ -164,7 +176,8 @@ export type EventAction =
   | EventCenterAction
   | CommunicationAction
   | NavigationAction
-  | TeamAction;
+  | TeamAction
+  | AgentAction;
 
 // ─── TrackEvent Params ──────────────────────────────────────────────
 
