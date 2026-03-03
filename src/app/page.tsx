@@ -4,63 +4,31 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import Papa from "papaparse";
 import JSZip from "jszip";
 import {
-  Upload, Users, MessageSquare,
-  ChevronRight, CheckCircle, XCircle, Clock,
-  Target, AlertCircle, Copy, RefreshCw, Filter,
-  Send, ThumbsUp, MessageCircle, Eye, Sparkles,
-  Linkedin, AtSign,
-  Phone, ChevronDown, Video, BookOpen, Shield, StickyNote,
-  Radar, CalendarCheck, LogOut, Mail, FileText, Zap, ExternalLink, Calendar,
-  Bell, GitBranch, Map, TrendingUp, Layers, Bot,
+  Upload, Users, CheckCircle, Clock,
+  Target, Send, Sparkles,
+  LogOut, Mail, Bell, BarChart3, Settings,
 } from "lucide-react";
 import type { Lead, Deal, Account, DraftMessage, CallLog, CallOutcome, VideoPrep, PrepKit, BattleCard, SupportedLanguage, SidebarSection } from "@/lib/types";
 import { MOCK_LEADS } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 import { getLeads, upsertLead, upsertLeads } from "@/lib/db";
 import { trackEventClient } from "@/lib/tracking";
-import OutreachCommandCenter from "@/components/OutreachCommandCenter";
-import Prospecting from "@/components/Prospecting";
-import ActivityTimeline from "@/components/ActivityTimeline";
-import CrossChannelWarning from "@/components/CrossChannelWarning";
 import VideoPrepModal from "@/components/VideoPrepModal";
 import SalesPrepModal from "@/components/SalesPrepModal";
-import PrepKitPanel from "@/components/PrepKitPanel";
-import PlaybookIntelligence from "@/components/PlaybookIntelligence";
-import BattleCardPanel from "@/components/BattleCardPanel";
-import LanguageSelector from "@/components/LanguageSelector";
-import LinkedInQueue from "@/components/LinkedInQueue";
-import UnifiedOutreach from "@/components/UnifiedOutreach";
-import DealPipeline from "@/components/DealPipeline";
 import AnalyzerPanel from "@/components/AnalyzerPanel";
 import MeetingSchedulerModal from "@/components/MeetingSchedulerModal";
-import OutreachApprovalQueue from "@/components/OutreachApprovalQueue";
-import LinkedInFilterSettings from "@/components/LinkedInFilterSettings";
-import LinkedInConversationList from "@/components/LinkedInConversationList";
-import LinkedInAuditLog from "@/components/LinkedInAuditLog";
 import EmailPopup from "@/components/EmailPopup";
 import LinkedInPopup from "@/components/LinkedInPopup";
 import ProposalCreatorPopup from "@/components/ProposalCreatorPopup";
-import DraftApprovalPanel from "@/components/DraftApprovalPanel";
-import OutreachActivitySummary from "@/components/OutreachActivitySummary";
-import LinkedInRedirectButton from "@/components/LinkedInRedirectButton";
-import BalboaAssistant from "@/components/BalboaAssistant";
-import SignalEngine from "@/components/SignalEngine";
-import BuyerJourneyMap from "@/components/BuyerJourneyMap";
-import WinLossIntelligence from "@/components/WinLossIntelligence";
-import MultiThreadingIntelligence from "@/components/MultiThreadingIntelligence";
-import SequenceBuilder from "@/components/SequenceBuilder";
-import NotificationCenter from "@/components/NotificationCenter";
 import DeepResearchPanel from "@/components/DeepResearchPanel";
-import LeadSummarizer from "@/components/LeadSummarizer";
-import CommunicationHub from "@/components/CommunicationHub";
-import EventCommandCenter from "@/components/EventCommandCenter";
-import ColdCallScript from "@/components/ColdCallScript";
-import VascoContextButton from "@/components/VascoContextButton";
-import AgentHubSection from "@/components/AgentHubSection";
-import InboxSection from "@/components/InboxSection";
-import ComplianceDashboard from "@/components/ComplianceDashboard";
-import ComplianceWarningBar from "@/components/ComplianceWarningBar";
-import LeadContextPanel, { Avatar, ScoreRing, ChannelIndicator, getRecommendedAction } from "@/components/LeadContextPanel";
+import BalboaAssistant from "@/components/BalboaAssistant";
+import HomeSection from "@/components/HomeSection";
+import LeadSection from "@/components/LeadSection";
+import InboxWrapper from "@/components/InboxWrapper";
+import OutreachSection from "@/components/OutreachSection";
+import DealsSection from "@/components/DealsSection";
+import InsightsSection from "@/components/InsightsSection";
+import SettingsSection from "@/components/SettingsSection";
 import { getClientConfig } from "@/lib/config-client";
 import { mockDeals, mockAccounts } from "@/lib/mock-phase2";
 import { mockEvents } from "@/lib/mock-events";
@@ -69,7 +37,7 @@ import type { SalesEvent, CommunicationThread } from "@/lib/types";
 
 export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
-  const [sidebarSection, setSidebarSection] = useState<SidebarSection>("today");
+  const [sidebarSection, setSidebarSection] = useState<SidebarSection>("home");
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -78,13 +46,11 @@ export default function Dashboard() {
   const [showVideoPrep, setShowVideoPrep] = useState(false);
   const [showPrepKit, setShowPrepKit] = useState(false);
   const [contentLanguage, setContentLanguage] = useState<SupportedLanguage>("english");
-  const [detailExpanded, setDetailExpanded] = useState(false);
   const [processedCount, setProcessedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [remainingConnections, setRemainingConnections] = useState<any[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [quickNote, setQuickNote] = useState("");
   const [generatingForLeadId, setGeneratingForLeadId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
@@ -99,7 +65,6 @@ export default function Dashboard() {
   const [analyzingLead, setAnalyzingLead] = useState(false);
   const [deals] = useState(mockDeals);
   const [accounts] = useState(mockAccounts);
-  const [showLinkedInAuditLog, setShowLinkedInAuditLog] = useState(false);
   const [showEmailPopup, setShowEmailPopup] = useState(false);
   const [showLinkedInPopup, setShowLinkedInPopup] = useState(false);
   const [showProposalPopup, setShowProposalPopup] = useState(false);
@@ -414,13 +379,10 @@ export default function Dashboard() {
     if (selectedLead?.id === leadId) {
       setSelectedLead(prev => prev ? { ...prev, touchpointTimeline: [...prev.touchpointTimeline, newEvent] } : prev);
     }
-    setQuickNote("");
     trackEventClient({ eventCategory: "lead", eventAction: "note_added", leadId });
   };
 
-  // getRecommendedAction is now imported from LeadContextPanel
-
-  // Handle lead updates from OutreachCommandCenter
+  // Handle lead updates from components
   const handleUpdateLead = (leadId: string, updates: Partial<Lead>) => {
     setLeads(prev => {
       const updated = prev.map(l => l.id === leadId ? { ...l, ...updates } : l);
@@ -828,29 +790,15 @@ export default function Dashboard() {
     return true;
   });
 
-  // Avatar, ScoreRing, ChannelIndicator, getRecommendedAction are now imported from LeadContextPanel
-
   // Section titles / subtitles
   const sectionMeta: Record<SidebarSection, { title: string; subtitle: string }> = {
-    today: { title: "Today", subtitle: "Your morning view — overdue and today's actions" },
-    leads: { title: "Leads", subtitle: "All leads in one place — research, draft, and send" },
-    followups: { title: "Follow-ups", subtitle: "Grouped by urgency — never miss a follow-up" },
-    prospecting: { title: "Prospecting & Signals", subtitle: "Discover new prospects, events, and market signals" },
-    playbook: { title: "Playbook Intelligence", subtitle: "Auto-detected patterns from messaging, calls, demos, and timing" },
-    outreach: { title: "Unified Outreach", subtitle: "Email and LinkedIn replies in one place with channel recommendations" },
-    deals: { title: "Deal Pipeline", subtitle: "Track and manage your deals with AI-powered strategy recommendations" },
-    queue: { title: "Outreach Queue", subtitle: "Review and approve outreach messages before they are sent" },
-    "linkedin-privacy": { title: "LinkedIn Privacy", subtitle: "Filter personal conversations from business workflows" },
-    signals: { title: "Signal Engine", subtitle: "Real-time intent signals and recommended actions" },
-    sequences: { title: "Sequence Automation", subtitle: "Build multi-step outreach sequences with auto-send and approval gates" },
-    journey: { title: "Buyer Journey", subtitle: "Visualize where your leads are in the buying process" },
-    threading: { title: "Multi-Threading", subtitle: "Track stakeholder engagement across accounts" },
-    winloss: { title: "Win/Loss Intelligence", subtitle: "Analyze deal outcomes to improve your sales strategy" },
-    notifications: { title: "Notifications", subtitle: "Stay on top of urgent signals and important updates" },
-    events: { title: "Event Command Center", subtitle: "Manage tradeshow and conference outreach with territory tracking" },
-    agents: { title: "Agent Hub", subtitle: "Browse, create, and run AI agents built by your team" },
-    inbox: { title: "Inbox", subtitle: "All conversations across LinkedIn, Email, and SMS in one place" },
-    compliance: { title: "Compliance & Safety", subtitle: "Platform regulation compliance, rate limits, and consent tracking" },
+    home: { title: "Home", subtitle: "Your daily command center" },
+    leads: { title: "Leads", subtitle: "All leads, prospecting, and intent signals" },
+    inbox: { title: "Inbox", subtitle: "All conversations and pending approvals" },
+    outreach: { title: "Outreach", subtitle: "Create, automate, and schedule outreach" },
+    deals: { title: "Deals", subtitle: "Pipeline, buyer journeys, and stakeholder engagement" },
+    insights: { title: "Insights", subtitle: "AI-detected patterns and deal outcome analysis" },
+    settings: { title: "Settings", subtitle: "Compliance, privacy, and AI agents" },
   };
 
   // Show loading spinner while checking auth
@@ -882,11 +830,11 @@ export default function Dashboard() {
         </div>
 
         <nav className="sidebar-nav">
-          {/* Today */}
-          <button onClick={() => navigateTo("today")}
-            className={`sidebar-item ${sidebarSection === "today" ? "active" : ""}`}>
+          {/* Home */}
+          <button onClick={() => navigateTo("home")}
+            className={`sidebar-item ${sidebarSection === "home" ? "active" : ""}`}>
             <Clock className="w-5 h-5" />
-            <span className="tooltip">Today</span>
+            <span className="tooltip">Home</span>
           </button>
 
           {/* Leads */}
@@ -896,123 +844,6 @@ export default function Dashboard() {
             <span className="tooltip">Leads</span>
           </button>
 
-          {/* Follow-ups */}
-          <button onClick={() => navigateTo("followups")}
-            className={`sidebar-item ${sidebarSection === "followups" ? "active" : ""}`}>
-            <CalendarCheck className="w-5 h-5" />
-            <span className="tooltip">Follow-ups</span>
-          </button>
-
-          {/* Prospecting */}
-          <button onClick={() => navigateTo("prospecting")}
-            className={`sidebar-item ${sidebarSection === "prospecting" ? "active" : ""}`}>
-            <Radar className="w-5 h-5" />
-            <span className="tooltip">Prospecting</span>
-          </button>
-
-          {/* Playbook */}
-          <button onClick={() => navigateTo("playbook")}
-            className={`sidebar-item ${sidebarSection === "playbook" ? "active" : ""}`}>
-            <BookOpen className="w-5 h-5" />
-            <span className="tooltip">Playbook</span>
-          </button>
-
-          {/* Divider */}
-          <div style={{ height: 1, background: "var(--balboa-border-light)", margin: "12px 8px" }} />
-
-          {/* Unified Outreach (Phase 2) */}
-          <button onClick={() => navigateTo("outreach")}
-            className={`sidebar-item ${sidebarSection === "outreach" ? "active" : ""}`}>
-            <MessageSquare className="w-5 h-5" />
-            <span className="tooltip">Outreach</span>
-          </button>
-
-          {/* Deal Pipeline (Phase 2) */}
-          <button onClick={() => navigateTo("deals")}
-            className={`sidebar-item ${sidebarSection === "deals" ? "active" : ""}`}>
-            <Target className="w-5 h-5" />
-            <span className="tooltip">Deals</span>
-          </button>
-
-          {/* Outreach Queue (Phase 3) */}
-          <button onClick={() => navigateTo("queue")}
-            className={`sidebar-item ${sidebarSection === "queue" ? "active" : ""}`}>
-            <FileText className="w-5 h-5" />
-            <span className="tooltip">Queue</span>
-          </button>
-
-          {/* LinkedIn Privacy (Phase 3) */}
-          <button onClick={() => { navigateTo("linkedin-privacy"); setShowLinkedInAuditLog(false); }}
-            className={`sidebar-item ${sidebarSection === "linkedin-privacy" ? "active" : ""}`}>
-            <Shield className="w-5 h-5" />
-            <span className="tooltip">Privacy</span>
-          </button>
-
-          {/* Divider */}
-          <div style={{ height: 1, background: "var(--balboa-border-light)", margin: "12px 8px" }} />
-
-          {/* Signal Engine */}
-          <button onClick={() => navigateTo("signals")}
-            className={`sidebar-item ${sidebarSection === "signals" ? "active" : ""}`}>
-            <Zap className="w-5 h-5" />
-            <span className="tooltip">Signals</span>
-          </button>
-
-          {/* Buyer Journey */}
-          <button onClick={() => navigateTo("journey")}
-            className={`sidebar-item ${sidebarSection === "journey" ? "active" : ""}`}>
-            <Map className="w-5 h-5" />
-            <span className="tooltip">Journey</span>
-          </button>
-
-          {/* Sequences */}
-          <button onClick={() => navigateTo("sequences")}
-            className={`sidebar-item ${sidebarSection === "sequences" ? "active" : ""}`}>
-            <GitBranch className="w-5 h-5" />
-            <span className="tooltip">Sequences</span>
-          </button>
-
-          {/* Multi-Threading */}
-          <button onClick={() => navigateTo("threading")}
-            className={`sidebar-item ${sidebarSection === "threading" ? "active" : ""}`}>
-            <Layers className="w-5 h-5" />
-            <span className="tooltip">Threading</span>
-          </button>
-
-          {/* Win/Loss */}
-          <button onClick={() => navigateTo("winloss")}
-            className={`sidebar-item ${sidebarSection === "winloss" ? "active" : ""}`}>
-            <TrendingUp className="w-5 h-5" />
-            <span className="tooltip">Win/Loss</span>
-          </button>
-
-          {/* Notifications */}
-          <button onClick={() => navigateTo("notifications")}
-            className={`sidebar-item ${sidebarSection === "notifications" ? "active" : ""}`}>
-            <Bell className="w-5 h-5" />
-            <span className="tooltip">Notifications</span>
-          </button>
-
-          {/* Divider */}
-          <div style={{ height: 1, background: "var(--balboa-border-light)", margin: "12px 8px" }} />
-
-          {/* Events */}
-          <button onClick={() => navigateTo("events")}
-            className={`sidebar-item ${sidebarSection === "events" ? "active" : ""}`}>
-            <Calendar className="w-5 h-5" />
-            <span className="tooltip">Events</span>
-          </button>
-
-          {/* Agent Hub */}
-          <button onClick={() => navigateTo("agents")}
-            className={`sidebar-item ${sidebarSection === "agents" ? "active" : ""}`}>
-            <Bot className="w-5 h-5" />
-            <span className="tooltip">Agent Hub</span>
-          </button>
-
-          {/* Divider */}
-          <div style={{ height: 1, background: "var(--balboa-border-light)", margin: "12px 8px" }} />
-
           {/* Inbox */}
           <button onClick={() => navigateTo("inbox")}
             className={`sidebar-item ${sidebarSection === "inbox" ? "active" : ""}`}>
@@ -1020,11 +851,35 @@ export default function Dashboard() {
             <span className="tooltip">Inbox</span>
           </button>
 
-          {/* Compliance */}
-          <button onClick={() => navigateTo("compliance")}
-            className={`sidebar-item ${sidebarSection === "compliance" ? "active" : ""}`}>
-            <Shield className="w-5 h-5" />
-            <span className="tooltip">Compliance</span>
+          {/* Outreach */}
+          <button onClick={() => navigateTo("outreach")}
+            className={`sidebar-item ${sidebarSection === "outreach" ? "active" : ""}`}>
+            <Send className="w-5 h-5" />
+            <span className="tooltip">Outreach</span>
+          </button>
+
+          {/* Deals */}
+          <button onClick={() => navigateTo("deals")}
+            className={`sidebar-item ${sidebarSection === "deals" ? "active" : ""}`}>
+            <Target className="w-5 h-5" />
+            <span className="tooltip">Deals</span>
+          </button>
+
+          {/* Divider */}
+          <div style={{ height: 1, background: "var(--balboa-border-light)", margin: "12px 8px" }} />
+
+          {/* Insights */}
+          <button onClick={() => navigateTo("insights")}
+            className={`sidebar-item ${sidebarSection === "insights" ? "active" : ""}`}>
+            <BarChart3 className="w-5 h-5" />
+            <span className="tooltip">Insights</span>
+          </button>
+
+          {/* Settings */}
+          <button onClick={() => navigateTo("settings")}
+            className={`sidebar-item ${sidebarSection === "settings" ? "active" : ""}`}>
+            <Settings className="w-5 h-5" />
+            <span className="tooltip">Settings</span>
           </button>
         </nav>
       </div>
@@ -1045,11 +900,37 @@ export default function Dashboard() {
             <button onClick={() => setShowAnalyzer(true)} className="btn-primary" style={{ background: "var(--balboa-blue)", fontSize: 12, boxShadow: "0 1px 4px rgba(59, 91, 219, 0.25)" }}>
               <Sparkles className="w-3.5 h-3.5" /> Analyze
             </button>
-            {/* Call logging is automatic via Aircall/Amplemarket integration */}
             <label className="btn-secondary cursor-pointer" style={{ fontSize: 12 }}>
               <Upload className="w-3.5 h-3.5" /> Import CSV
               <input type="file" accept=".csv,.zip" onChange={handleFileUpload} className="hidden" />
             </label>
+            {/* Notifications bell */}
+            <button
+              onClick={() => navigateTo("home")}
+              className="btn-ghost"
+              style={{ padding: 6, position: "relative" }}
+              title="Notifications"
+            >
+              <Bell className="w-4 h-4" />
+              {(() => {
+                const unread = leads.filter(l =>
+                  l.contactStatus === "positive" ||
+                  (l.emailStatus === "opened" && l.emailsSentCount && l.emailsSentCount > 0)
+                ).length;
+                return unread > 0 ? (
+                  <span style={{
+                    position: "absolute", top: 2, right: 2,
+                    width: 14, height: 14, borderRadius: "50%",
+                    background: "var(--balboa-red)", color: "white",
+                    fontSize: 8, fontWeight: 800,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    border: "2px solid white",
+                  }}>
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                ) : null;
+              })()}
+            </button>
             {userName && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 8, borderLeft: "1px solid var(--balboa-border-light)", marginLeft: 4 }}>
                 <span style={{ fontSize: 11, color: "var(--balboa-text-muted)", fontWeight: 500 }}>{userName.split(" ")[0]}</span>
@@ -1071,217 +952,62 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* === TODAY SECTION === */}
-        {sidebarSection === "today" && (
-          <div className="p-6">
-            {/* Morning routine greeting */}
-            {(() => {
-              const hour = new Date().getHours();
-              const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-              const actionableCount = leads.filter(l => !l.disqualifyReason && (l.icpScore?.tier === "hot" || l.icpScore?.tier === "warm")).length;
-              const readyDrafts = leads.reduce((acc, l) => acc + l.draftMessages.filter(d => d.status === "draft").length, 0);
-              return (
-                <div style={{ marginBottom: 20 }}>
-                  <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--balboa-navy)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-                    {greeting} 👋
-                  </h2>
-                  <p style={{ fontSize: 13, color: "var(--balboa-text-muted)", marginTop: 4, lineHeight: 1.5 }}>
-                    You have <strong style={{ color: "var(--balboa-navy)" }}>{actionableCount}</strong> people to reach out to
-                    {readyDrafts > 0 && <> and <strong style={{ color: "var(--balboa-blue)" }}>{readyDrafts}</strong> message{readyDrafts > 1 ? "s" : ""} ready to send</>}.
-                    {" "}Let&apos;s go.
-                  </p>
-                </div>
-              );
-            })()}
-
-            <OutreachCommandCenter
-              leads={leads}
-              onNavigateToLead={handleNavigateToLead}
-              onUpdateLead={handleUpdateLead}
-              onGenerateMessage={generateMessageInline}
-              onCopyMessage={copyToClipboard}
-              generatingForLeadId={generatingForLeadId}
-              defaultTab="today"
-              hideTabNav
-            />
-
-            {/* LinkedIn Queue — batch-process LinkedIn-only connections */}
-            <div style={{ marginTop: 32 }}>
-              <LinkedInQueue
-                leads={leads}
-                onNavigateToLead={handleNavigateToLead}
-                onUpdateLead={handleUpdateLead}
-                onGenerateMessage={generateMessageInline}
-                onCopyMessage={copyToClipboard}
-                generatingForLeadId={generatingForLeadId}
-              />
-            </div>
-          </div>
+        {/* === HOME === */}
+        {sidebarSection === "home" && (
+          <HomeSection
+            leads={leads}
+            deals={typedDeals}
+            events={events}
+            selectedLead={selectedLead}
+            onNavigateToLead={handleNavigateToLead}
+            onUpdateLead={handleUpdateLead}
+            onGenerateMessage={generateMessageInline}
+            onCopyMessage={copyToClipboard}
+            generatingForLeadId={generatingForLeadId}
+            language={contentLanguage}
+          />
         )}
 
-        {/* === LEADS SECTION === */}
+        {/* === LEADS === */}
         {sidebarSection === "leads" && (
           <div className="p-6">
-            {/* Loading */}
-            {loading && (
-              <div className="flex items-center justify-center py-16">
-                <div className="card p-10 text-center max-w-md">
-                  <div className="w-10 h-10 border-3 rounded-full animate-spin mx-auto mb-4"
-                    style={{ borderColor: "var(--balboa-border)", borderTopColor: "var(--balboa-navy)" }} />
-                  <h2 className="text-base font-bold mb-2" style={{ color: "var(--balboa-navy)" }}>{loadingMessage}</h2>
-                  {totalCount > 0 && (
-                    <div className="mt-3">
-                      <div className="rate-bar-track">
-                        <div className="rate-bar-fill" style={{ width: `${(processedCount / totalCount) * 100}%`, background: "var(--balboa-navy)" }} />
-                      </div>
-                      <p className="text-xs mt-2" style={{ color: "var(--balboa-text-muted)" }}>{processedCount} / {totalCount}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Lead list + detail panel */}
-            {!loading && (
-              <div style={{ display: "flex", gap: 20 }}>
-                {/* Lead list */}
-                <div style={{ width: selectedLead ? "45%" : "100%", transition: "width 0.3s ease", flexShrink: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                    <Filter className="w-4 h-4" style={{ color: "var(--balboa-text-muted)" }} />
-                    <select value={filterTier} onChange={(e) => setFilterTier(e.target.value)}>
-                      <option value="all">All Tiers</option>
-                      <option value="hot">Hot</option>
-                      <option value="warm">Warm</option>
-                      <option value="cold">Cold</option>
-                    </select>
-                    <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                      <option value="all">All Status</option>
-                      <option value="new">New</option>
-                      <option value="researched">Researched</option>
-                      <option value="engaged">Engaged</option>
-                      <option value="opportunity">Opportunity</option>
-                      <option value="nurture">Nurture</option>
-                    </select>
-                    <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--balboa-text-muted)", fontWeight: 500 }}>{filteredLeads.length} leads</span>
-                    {remainingConnections.length > 0 && (
-                      <button onClick={() => loadMoreConnections(50)} disabled={loadingMore} className="btn-ghost">
-                        {loadingMore ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Users className="w-3 h-3" />}
-                        {loadingMore ? "Loading..." : `+${Math.min(50, remainingConnections.length)} more`}
-                      </button>
-                    )}
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "calc(100vh - 240px)", overflowY: "auto", paddingRight: 4 }}>
-                    {filteredLeads.map((lead) => (
-                      <div key={lead.id} onClick={() => setSelectedLead(lead)}
-                        className={`card card-hover fade-in
-                          ${lead.icpScore?.tier === "hot" ? "priority-urgent" : lead.icpScore?.tier === "warm" ? "priority-medium" : "priority-low"}`}
-                        style={{
-                          padding: "12px 14px",
-                          borderColor: selectedLead?.id === lead.id ? "var(--balboa-blue)" : undefined,
-                          boxShadow: selectedLead?.id === lead.id ? "0 0 0 2px rgba(59, 91, 219, 0.15)" : undefined,
-                        }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <div style={{ position: "relative" }}>
-                            <Avatar name={`${lead.firstName} ${lead.lastName}`} size={40} />
-                            <div style={{
-                              position: "absolute", bottom: -2, right: -2,
-                              width: 18, height: 18, borderRadius: "50%",
-                              background: (lead.icpScore?.overall || 0) >= 70 ? "#dc2626" : (lead.icpScore?.overall || 0) >= 40 ? "#f59f00" : "#3b5bdb",
-                              color: "white", fontSize: 8, fontWeight: 800,
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                              border: "2px solid white",
-                            }}>
-                              {lead.icpScore?.overall || 0}
-                            </div>
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <h3 style={{ fontWeight: 600, fontSize: 13, color: "var(--balboa-navy)", letterSpacing: "-0.01em" }}>{lead.firstName} {lead.lastName}</h3>
-                              <span className={`badge badge-${lead.icpScore?.tier}`}>{lead.icpScore?.tier?.toUpperCase()}</span>
-                              <ChannelIndicator lead={lead} />
-                            </div>
-                            <p style={{ fontSize: 12, color: "var(--balboa-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{lead.position}</p>
-                            <p style={{ fontSize: 11, color: "var(--balboa-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company}</p>
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                            {lead.draftMessages.length > 0 && (
-                              <span style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 3, color: "var(--balboa-blue)", fontWeight: 500 }}>
-                                <MessageSquare className="w-3 h-3" /> {lead.draftMessages.length}
-                              </span>
-                            )}
-                            <ChevronRight className="w-3.5 h-3.5" style={{ color: "var(--balboa-text-light)" }} />
-                          </div>
-                        </div>
-                        {lead.icpScore?.signals && lead.icpScore.signals.length > 0 && (
-                          <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
-                            {lead.icpScore.signals.slice(0, 3).map((s, i) => (
-                              <span key={i} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(30,42,94,0.05)", color: "var(--balboa-navy)", fontWeight: 500 }}>{s}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Lead detail — now using LeadContextPanel */}
-                {selectedLead && (
-                  <div className="card fade-in" style={{ width: "55%", padding: "22px 24px", maxHeight: "calc(100vh - 240px)", overflowY: "auto" }}>
-                    <LeadContextPanel
-                      lead={selectedLead}
-                      communications={communications[selectedLead.id] || []}
-                      language={contentLanguage}
-                      mode="full"
-                      onClose={() => setSelectedLead(null)}
-                      onAskVasco={setVascoPrompt}
-                      onUpdateLeadStatus={updateLeadStatus}
-                      onAddNote={handleAddNote}
-                      onAnalyzeLead={analyzeLead}
-                      onGenerateMessage={generateMessage}
-                      onUpdateDraftStatus={updateDraftStatus}
-                      onBattleCardGenerate={handleBattleCardGenerate}
-                      onCopyMessage={copyToClipboard}
-                      onOpenEmailPopup={(prefill) => { if (prefill) setPopupPrefill(prefill); setShowEmailPopup(true); }}
-                      onOpenLinkedInPopup={(prefill) => { if (prefill) setPopupPrefill(prefill as { body?: string; draftId?: string }); setShowLinkedInPopup(true); }}
-                      onOpenProposalPopup={() => setShowProposalPopup(true)}
-                      onOpenVideoPrep={() => setShowVideoPrep(true)}
-                      onOpenPrepKit={() => setShowPrepKit(true)}
-                      onOpenMeetingScheduler={() => setShowMeetingScheduler(true)}
-                      onOpenDeepResearch={() => setShowDeepResearch(true)}
-                      generatingAction={generatingAction}
-                      leadAnalysis={leadAnalysis}
-                      analyzingLead={analyzingLead}
-                      contentLanguage={contentLanguage}
-                      onLanguageChange={setContentLanguage}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* === FOLLOW-UPS SECTION === */}
-        {sidebarSection === "followups" && (
-          <div className="p-6">
-            <OutreachCommandCenter
+            <LeadSection
               leads={leads}
-              onNavigateToLead={handleNavigateToLead}
-              onUpdateLead={handleUpdateLead}
-              onGenerateMessage={generateMessageInline}
+              selectedLead={selectedLead}
+              onSelectLead={setSelectedLead}
+              filteredLeads={filteredLeads}
+              filterTier={filterTier}
+              setFilterTier={setFilterTier}
+              filterStatus={filterStatus}
+              setFilterStatus={setFilterStatus}
+              loading={loading}
+              loadingMessage={loadingMessage}
+              processedCount={processedCount}
+              totalCount={totalCount}
+              remainingConnections={remainingConnections}
+              loadingMore={loadingMore}
+              onLoadMore={loadMoreConnections}
+              communications={communications}
+              contentLanguage={contentLanguage}
+              onLanguageChange={setContentLanguage}
+              onAskVasco={setVascoPrompt}
+              onUpdateLeadStatus={updateLeadStatus}
+              onAddNote={handleAddNote}
+              onAnalyzeLead={analyzeLead}
+              onGenerateMessage={generateMessage}
+              onUpdateDraftStatus={updateDraftStatus}
+              onBattleCardGenerate={handleBattleCardGenerate}
               onCopyMessage={copyToClipboard}
-              generatingForLeadId={generatingForLeadId}
-              defaultTab="followups"
-              hideTabNav
-            />
-          </div>
-        )}
-
-        {/* === PROSPECTING SECTION === */}
-        {sidebarSection === "prospecting" && (
-          <div className="p-6">
-            <Prospecting
+              onOpenEmailPopup={(prefill) => { if (prefill) setPopupPrefill(prefill); setShowEmailPopup(true); }}
+              onOpenLinkedInPopup={(prefill) => { if (prefill) setPopupPrefill(prefill as { body?: string; draftId?: string }); setShowLinkedInPopup(true); }}
+              onOpenProposalPopup={() => setShowProposalPopup(true)}
+              onOpenVideoPrep={() => setShowVideoPrep(true)}
+              onOpenPrepKit={() => setShowPrepKit(true)}
+              onOpenMeetingScheduler={() => setShowMeetingScheduler(true)}
+              onOpenDeepResearch={() => setShowDeepResearch(true)}
+              generatingAction={generatingAction}
+              leadAnalysis={leadAnalysis}
+              analyzingLead={analyzingLead}
               onAddToLeads={(prospect) => {
                 const newLead: Lead = {
                   id: `prospect-${prospect.id}-${Date.now()}`,
@@ -1305,7 +1031,7 @@ export default function Dashboard() {
                 setLeads(prev => [...prev, newLead].sort((a, b) => (b.icpScore?.overall || 0) - (a.icpScore?.overall || 0)));
                 if (userId) upsertLead(supabase, userId, newLead).catch(err => console.error("Failed to persist prospect:", err));
               }}
-              onGenerateMessage={async (prospect) => {
+              onProspectGenerateMessage={async (prospect) => {
                 const tempLead: Lead = {
                   id: `temp-prospect-${prospect.id}`,
                   firstName: prospect.firstName,
@@ -1335,217 +1061,93 @@ export default function Dashboard() {
                   return data.message?.body || "";
                 } catch { return ""; }
               }}
-              onCopyMessage={copyToClipboard}
-            />
-          </div>
-        )}
-
-        {/* === PLAYBOOK SECTION === */}
-        {sidebarSection === "playbook" && (
-          <PlaybookIntelligence />
-        )}
-
-        {/* === UNIFIED OUTREACH SECTION (Phase 2) === */}
-        {sidebarSection === "outreach" && (
-          <div className="p-6">
-            <UnifiedOutreach
-              leads={leads}
-              onGenerateMessage={generateMessageInline}
-              onCopyMessage={copyToClipboard}
               onNavigateToLead={handleNavigateToLead}
-              generatingForLeadId={generatingForLeadId}
-              contentLanguage={contentLanguage}
-              renderLeadContext={(lead) => (
-                <LeadContextPanel
-                  lead={lead}
-                  communications={communications[lead.id] || []}
-                  language={contentLanguage}
-                  mode="outreach-sidebar"
-                  onAskVasco={setVascoPrompt}
-                  onUpdateLeadStatus={updateLeadStatus}
-                  onAddNote={handleAddNote}
-                  onAnalyzeLead={analyzeLead}
-                  onGenerateMessage={generateMessage}
-                  onUpdateDraftStatus={updateDraftStatus}
-                  onBattleCardGenerate={handleBattleCardGenerate}
-                  onCopyMessage={copyToClipboard}
-                  onOpenEmailPopup={(prefill) => { if (prefill) setPopupPrefill(prefill); setShowEmailPopup(true); }}
-                  onOpenLinkedInPopup={(prefill) => { if (prefill) setPopupPrefill(prefill as { body?: string; draftId?: string }); setShowLinkedInPopup(true); }}
-                  onOpenProposalPopup={() => setShowProposalPopup(true)}
-                  onOpenVideoPrep={() => setShowVideoPrep(true)}
-                  onOpenPrepKit={() => setShowPrepKit(true)}
-                  onOpenMeetingScheduler={() => setShowMeetingScheduler(true)}
-                  onOpenDeepResearch={() => setShowDeepResearch(true)}
-                  generatingAction={generatingAction}
-                  leadAnalysis={leadAnalysis}
-                  analyzingLead={analyzingLead}
-                  contentLanguage={contentLanguage}
-                  onLanguageChange={setContentLanguage}
-                />
-              )}
+              userId={userId}
             />
           </div>
         )}
 
-        {/* === DEAL PIPELINE SECTION (Phase 2) === */}
-        {sidebarSection === "deals" && (
-          <div className="p-6">
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--balboa-navy)", margin: 0 }}>Deal Pipeline</h2>
-              <VascoContextButton
-                prompt={`Analyze my entire deal pipeline. I have ${deals.length} deals. Give me a health check: which deals are at risk? Which should I prioritize this week? What's my expected close rate? Are there any stalled deals I should re-engage? Provide a prioritized action plan.`}
-                tooltip="Ask Vasco to analyze your pipeline"
-                onClick={setVascoPrompt}
-                size={16}
-              />
-            </div>
-            <DealPipeline deals={deals} leads={leads} onNavigateToLead={handleNavigateToLead} />
-          </div>
-        )}
-
-        {/* === OUTREACH QUEUE SECTION (Phase 3) === */}
-        {sidebarSection === "queue" && (
-          <div className="p-6">
-            <OutreachApprovalQueue visible={sidebarSection === "queue"} />
-          </div>
-        )}
-
-        {/* === LINKEDIN PRIVACY SECTION (Phase 3) === */}
-        {sidebarSection === "linkedin-privacy" && (
-          <div className="p-6">
-            {showLinkedInAuditLog ? (
-              <LinkedInAuditLog
-                visible={true}
-                onBack={() => setShowLinkedInAuditLog(false)}
-              />
-            ) : (
-              <>
-                <LinkedInFilterSettings
-                  visible={true}
-                  onShowAuditLog={() => setShowLinkedInAuditLog(true)}
-                />
-                <div style={{ height: 1, background: "rgba(148,163,184,0.1)", margin: "16px 0" }} />
-                <LinkedInConversationList visible={true} />
-              </>
-            )}
-          </div>
-        )}
-
-        {/* === SIGNAL ENGINE SECTION === */}
-        {sidebarSection === "signals" && (
-          <div className="p-6">
-            <SignalEngine
-              leads={leads}
-              onNavigateToLead={handleNavigateToLead}
-              onGenerateMessage={generateMessage}
-            />
-          </div>
-        )}
-
-        {/* === BUYER JOURNEY MAP SECTION === */}
-        {sidebarSection === "journey" && (
-          <div className="p-6">
-            <BuyerJourneyMap
-              leads={leads}
-              deals={typedDeals}
-              onNavigateToLead={handleNavigateToLead}
-              selectedLead={selectedLead}
-            />
-          </div>
-        )}
-
-        {/* === SEQUENCE AUTOMATION SECTION === */}
-        {sidebarSection === "sequences" && (
-          <div className="p-6">
-            <SequenceBuilder
-              leads={leads}
-              onNavigateToLead={handleNavigateToLead}
-            />
-          </div>
-        )}
-
-        {/* === MULTI-THREADING SECTION === */}
-        {sidebarSection === "threading" && (
-          <div className="p-6">
-            <MultiThreadingIntelligence
-              leads={leads}
-              deals={typedDeals}
-              accounts={typedAccounts}
-              onNavigateToLead={handleNavigateToLead}
-            />
-          </div>
-        )}
-
-        {/* === WIN/LOSS INTELLIGENCE SECTION === */}
-        {sidebarSection === "winloss" && (
-          <div className="p-6">
-            <WinLossIntelligence
-              deals={typedDeals}
-              leads={leads}
-            />
-          </div>
-        )}
-
-        {/* === NOTIFICATION CENTER SECTION === */}
-        {sidebarSection === "notifications" && (
-          <div className="p-6">
-            <NotificationCenter leads={leads} />
-          </div>
-        )}
-
-        {/* === EVENT COMMAND CENTER SECTION (Phase 6) === */}
-        {sidebarSection === "events" && (
-          <div className="p-6">
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--balboa-navy)", margin: 0 }}>Event Command Center</h2>
-              <VascoContextButton
-                prompt={`Analyze my upcoming events and attendee lists. I have ${events.length} events tracked. Which events have the highest-value attendees? What's my outreach coverage — who haven't I contacted yet? Suggest the best pre-event and post-event outreach strategy for maximum ROI.`}
-                tooltip="Ask Vasco about event strategy"
-                onClick={setVascoPrompt}
-                size={16}
-              />
-            </div>
-            <EventCommandCenter
-              events={events}
-              leads={leads}
-              onNavigateToLead={handleNavigateToLead}
-              language={contentLanguage}
-            />
-          </div>
-        )}
-
-        {/* === AGENT HUB SECTION === */}
-        {sidebarSection === "agents" && (
-          <div className="p-6">
-            <AgentHubSection
-              leads={leads}
-              selectedLead={selectedLead}
-              language={contentLanguage}
-            />
-          </div>
-        )}
-
-        {/* === INBOX SECTION === */}
+        {/* === INBOX === */}
         {sidebarSection === "inbox" && (
-          <div className="p-6" style={{ height: "calc(100vh - 80px)" }}>
-            <InboxSection
+          <div className="p-6">
+            <InboxWrapper
               leads={leads}
               communications={communications}
-              contentLanguage={contentLanguage}
               onNavigateToLead={handleNavigateToLead}
-              onGenerateMessage={generateMessage}
               onAskVasco={setVascoPrompt}
               onCopyMessage={copyToClipboard}
+              onGenerateMessage={generateMessage}
               generatingForLeadId={generatingForLeadId}
+              contentLanguage={contentLanguage}
             />
           </div>
         )}
 
-        {/* === COMPLIANCE SECTION === */}
-        {sidebarSection === "compliance" && (
+        {/* === OUTREACH === */}
+        {sidebarSection === "outreach" && (
           <div className="p-6">
-            <ComplianceDashboard
+            <OutreachSection
               leads={leads}
+              selectedLead={selectedLead}
+              communications={communications}
+              contentLanguage={contentLanguage}
+              events={events}
+              onGenerateMessageInline={generateMessageInline}
+              onCopyMessage={copyToClipboard}
+              onNavigateToLead={handleNavigateToLead}
+              generatingForLeadId={generatingForLeadId}
+              onAskVasco={setVascoPrompt}
+              onUpdateLeadStatus={updateLeadStatus}
+              onAddNote={handleAddNote}
+              onAnalyzeLead={analyzeLead}
+              onGenerateMessage={generateMessage}
+              onUpdateDraftStatus={updateDraftStatus}
+              onBattleCardGenerate={handleBattleCardGenerate}
+              onOpenEmailPopup={(prefill) => { if (prefill) setPopupPrefill(prefill); setShowEmailPopup(true); }}
+              onOpenLinkedInPopup={(prefill) => { if (prefill) setPopupPrefill(prefill as { body?: string; draftId?: string }); setShowLinkedInPopup(true); }}
+              onOpenProposalPopup={() => setShowProposalPopup(true)}
+              onOpenVideoPrep={() => setShowVideoPrep(true)}
+              onOpenPrepKit={() => setShowPrepKit(true)}
+              onOpenMeetingScheduler={() => setShowMeetingScheduler(true)}
+              onOpenDeepResearch={() => setShowDeepResearch(true)}
+              generatingAction={generatingAction}
+              leadAnalysis={leadAnalysis}
+              analyzingLead={analyzingLead}
+              onLanguageChange={setContentLanguage}
+            />
+          </div>
+        )}
+
+        {/* === DEALS === */}
+        {sidebarSection === "deals" && (
+          <div className="p-6">
+            <DealsSection
+              deals={deals}
+              typedDeals={typedDeals}
+              accounts={typedAccounts}
+              leads={leads}
+              selectedLead={selectedLead}
+              onNavigateToLead={handleNavigateToLead}
+            />
+          </div>
+        )}
+
+        {/* === INSIGHTS === */}
+        {sidebarSection === "insights" && (
+          <div className="p-6">
+            <InsightsSection
+              deals={typedDeals}
+              leads={leads}
+            />
+          </div>
+        )}
+
+        {/* === SETTINGS === */}
+        {sidebarSection === "settings" && (
+          <div className="p-6">
+            <SettingsSection
+              leads={leads}
+              selectedLead={selectedLead}
               language={contentLanguage}
             />
           </div>

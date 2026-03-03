@@ -306,7 +306,7 @@ export interface DashboardStats {
   weeklyEngagement: number;
 }
 
-export type SidebarSection = "today" | "leads" | "followups" | "prospecting" | "playbook" | "outreach" | "deals" | "queue" | "linkedin-privacy" | "signals" | "sequences" | "journey" | "threading" | "winloss" | "notifications" | "events" | "agents" | "inbox" | "compliance";
+export type SidebarSection = "home" | "leads" | "inbox" | "outreach" | "deals" | "insights" | "settings";
 
 // === LINKEDIN OUTREACH TRACKER ===
 export type LinkedInOutreachStage =
