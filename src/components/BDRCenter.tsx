@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import { Plus, Filter, Bot, ChevronRight, CheckSquare, Layers, Trash2 } from "lucide-react";
 import { MOCK_OUTREACH_LISTS } from "@/lib/mock-outreach-progress";
 import type { OutreachList, Lead } from "@/lib/types";
+import { EmptyOutreach } from "./EmptyState";
+import { getClientConfig } from "@/lib/config-client";
 
 // ── Mock contacts for the selected list ──
 
@@ -102,7 +104,9 @@ interface BDRCenterProps {
 }
 
 export default function BDRCenter({ leads }: BDRCenterProps) {
-  const [lists] = useState<OutreachList[]>(MOCK_OUTREACH_LISTS);
+  const { isSandbox } = getClientConfig();
+
+  const [lists] = useState<OutreachList[]>(isSandbox ? MOCK_OUTREACH_LISTS : []);
   const [selectedListId, setSelectedListId] = useState<string>(lists[0]?.id ?? "");
   const [contacts, setContacts] = useState<ListContact[]>(() =>
     lists[0] ? generateMockContacts(lists[0]) : []
@@ -115,6 +119,10 @@ export default function BDRCenter({ leads }: BDRCenterProps) {
 
   // ── void usage warning fix ──
   void leads;
+
+  if (!isSandbox && lists.length === 0) {
+    return <EmptyOutreach />;
+  }
 
   const selectedList = lists.find((l) => l.id === selectedListId);
 

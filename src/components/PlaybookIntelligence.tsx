@@ -3,8 +3,16 @@
 import { BookOpen } from "lucide-react";
 import PlaybookDashboard from "./PlaybookDashboard";
 import { MOCK_PLAYBOOK_DASHBOARD } from "@/lib/mock-data";
+import { EmptyInsights } from "./EmptyState";
+import { getClientConfig } from "@/lib/config-client";
 
 export default function PlaybookIntelligence() {
+  const { isSandbox } = getClientConfig();
+
+  if (!isSandbox) {
+    return <EmptyInsights />;
+  }
+
   return (
     <div className="p-6">
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>

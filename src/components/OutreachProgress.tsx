@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Minus, RotateCcw } from "lucide-react";
 import { MOCK_WEEKLY_HISTORY, MOCK_OUTREACH_LISTS, MOCK_CONVERSION_HEATMAP, computeWeeklyMetricsFromLeads } from "@/lib/mock-outreach-progress";
 import type { Lead } from "@/lib/types";
+import { EmptyOutreach } from "./EmptyState";
+import { getClientConfig } from "@/lib/config-client";
 
 // ── KPI Card ──
 
@@ -243,11 +245,14 @@ interface OutreachProgressProps {
 }
 
 export default function OutreachProgress({ leads }: OutreachProgressProps) {
-  const [weekIndex, setWeekIndex] = useState(MOCK_WEEKLY_HISTORY.length - 1); // default to current week
+  const { isSandbox } = getClientConfig();
+
+  const [weekIndex, setWeekIndex] = useState(isSandbox ? MOCK_WEEKLY_HISTORY.length - 1 : 0);
   const [showComparison, setShowComparison] = useState(true);
 
   // Merge live computed data with mock history
   const allWeeks = useMemo(() => {
+    if (!isSandbox) return [];
     const history = [...MOCK_WEEKLY_HISTORY];
     // Replace the last entry with live-computed data from leads
     const liveMetrics = computeWeeklyMetricsFromLeads(leads);
@@ -263,7 +268,11 @@ export default function OutreachProgress({ leads }: OutreachProgressProps) {
       };
     }
     return history;
-  }, [leads]);
+  }, [leads, isSandbox]);
+
+  if (!isSandbox) {
+    return <EmptyOutreach />;
+  }
 
   const currentWeek = allWeeks[weekIndex];
   const prevWeek = weekIndex > 0 ? allWeeks[weekIndex - 1] : undefined;

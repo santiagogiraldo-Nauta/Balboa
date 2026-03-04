@@ -11,6 +11,7 @@ import type { Lead } from "@/lib/types";
 import type { PipelineDeal } from "@/lib/mock-phase2";
 import { PIPELINE_CONFIG } from "@/lib/mock-phase2";
 import { trackEventClient } from "@/lib/tracking";
+import { EmptyDeals } from "./EmptyState";
 
 const HEALTH_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   hot: { label: "Hot", color: "#dc2626", bg: "#fef2f2", dot: "#ef4444" },
@@ -49,6 +50,8 @@ export default function DealPipeline({
   const [presetView, setPresetView] = useState<PresetView>("open");
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [showSidebar, setShowSidebar] = useState(true);
+
+  if (deals.length === 0) return <EmptyDeals />;
 
   // Get unique owners
   const owners = useMemo(() => {

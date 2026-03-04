@@ -36,7 +36,12 @@ import { mockCommunications } from "@/lib/mock-communications";
 import type { SalesEvent, CommunicationThread } from "@/lib/types";
 
 export default function Dashboard() {
-  const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
+  // Mode detection — must be before useState calls
+  const supabase = createClient();
+  const { isSandbox } = getClientConfig();
+
+  // Core data — production starts empty, sandbox starts with demo data
+  const [leads, setLeads] = useState<Lead[]>(isSandbox ? MOCK_LEADS : []);
   const [sidebarSection, setSidebarSection] = useState<SidebarSection>("home");
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
@@ -63,8 +68,8 @@ export default function Dashboard() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [leadAnalysis, setLeadAnalysis] = useState<any>(null);
   const [analyzingLead, setAnalyzingLead] = useState(false);
-  const [deals] = useState(mockDeals);
-  const [accounts] = useState(mockAccounts);
+  const [deals] = useState(isSandbox ? mockDeals : []);
+  const [accounts] = useState(isSandbox ? mockAccounts : []);
   const [showEmailPopup, setShowEmailPopup] = useState(false);
   const [showLinkedInPopup, setShowLinkedInPopup] = useState(false);
   const [showProposalPopup, setShowProposalPopup] = useState(false);
@@ -73,15 +78,12 @@ export default function Dashboard() {
   const [vascoPrompt, setVascoPrompt] = useState<string | null>(null);
   const [vascoOpen, setVascoOpen] = useState(false);
   const [showDeepResearch, setShowDeepResearch] = useState(false);
-  const [events] = useState<SalesEvent[]>(mockEvents);
-  const [communications, setCommunications] = useState<Record<string, CommunicationThread[]>>(mockCommunications);
+  const [events] = useState<SalesEvent[]>(isSandbox ? mockEvents : []);
+  const [communications, setCommunications] = useState<Record<string, CommunicationThread[]>>(isSandbox ? mockCommunications : {});
   // Gmail integration state
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailLoading, setGmailLoading] = useState(false);
   const [unmatchedThreads, setUnmatchedThreads] = useState<CommunicationThread[]>([]);
-
-  const supabase = createClient();
-  const { isSandbox } = getClientConfig();
 
   // Adapt PipelineDeal[] to Deal[] for components that expect the canonical Deal type
   const typedDeals: Deal[] = useMemo(() => deals.map((d) => ({
@@ -136,7 +138,7 @@ export default function Dashboard() {
     let didTimeout = false;
     const timeout = setTimeout(() => {
       didTimeout = true;
-      console.warn("Supabase auth timed out — loading with mock data");
+      console.warn("Supabase auth timed out — loading with current data");
       setDbReady(true);
       setInitialLoading(false);
     }, 6000); // 6s max wait
@@ -167,7 +169,7 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.error("Failed to load user/leads:", err);
-        // Fallback to mock data
+        // Fallback to current state (empty in production, mock in sandbox)
       }
       if (!didTimeout) {
         clearTimeout(timeout);
@@ -190,15 +192,10 @@ export default function Dashboard() {
 
         if (data.connected) {
           setGmailConnected(true);
-          // Merge: keep non-email mock threads, replace email threads with real Gmail data
+          // Production: only show real Gmail data (no mock threads)
           const merged: Record<string, CommunicationThread[]> = {};
 
-          // First add all non-email threads from mock data
-          for (const [leadId, threads] of Object.entries(mockCommunications)) {
-            merged[leadId] = (threads as CommunicationThread[]).filter((t) => t.channel !== "email");
-          }
-
-          // Then add real Gmail email threads
+          // Add real Gmail email threads matched to leads
           for (const [leadId, threads] of Object.entries(data.matched as Record<string, CommunicationThread[]>)) {
             if (!merged[leadId]) merged[leadId] = [];
             merged[leadId].push(...threads);

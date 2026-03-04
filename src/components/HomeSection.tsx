@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { ChevronRight, MessageSquare } from "lucide-react";
+import { EmptyHome } from "./EmptyState";
 import type { Lead, Deal, SupportedLanguage, SalesEvent } from "@/lib/types";
 import SectionTabBar from "./SectionTabBar";
 import OutreachCommandCenter from "./OutreachCommandCenter";
@@ -455,8 +456,11 @@ export default function HomeSection({
         />
       </div>
 
+      {/* Empty state when no leads */}
+      {leads.length === 0 && <EmptyHome />}
+
       {/* ══════════ ACTIONS TAB ══════════ */}
-      {activeTab === "actions" && (
+      {leads.length > 0 && activeTab === "actions" && (
         <div>
           {/* Greeting — one line */}
           <div style={{
@@ -537,7 +541,7 @@ export default function HomeSection({
       )}
 
       {/* ══════════ ALL LEADS TAB ══════════ */}
-      {activeTab === "followups" && (
+      {leads.length > 0 && activeTab === "followups" && (
         <OutreachCommandCenter
           leads={leads}
           onNavigateToLead={onNavigateToLead}
@@ -550,7 +554,7 @@ export default function HomeSection({
       )}
 
       {/* ══════════ NOTIFICATIONS TAB ══════════ */}
-      {activeTab === "notifications" && (
+      {leads.length > 0 && activeTab === "notifications" && (
         <NotificationCenter leads={leads} />
       )}
     </div>

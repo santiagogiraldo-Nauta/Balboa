@@ -11,6 +11,8 @@ import {
 import type { Prospect, EventOpportunity, MarketSignal } from "@/lib/types";
 import { MOCK_PROSPECTS, MOCK_EVENTS, MOCK_SIGNALS } from "@/lib/mock-data";
 import { trackEventClient } from "@/lib/tracking";
+import { getClientConfig } from "@/lib/config-client";
+import EmptyState from "./EmptyState";
 
 interface Props {
   onAddToLeads?: (prospect: Prospect) => void;
@@ -19,14 +21,27 @@ interface Props {
 }
 
 export default function Prospecting({ onAddToLeads, onGenerateMessage, onCopyMessage }: Props) {
-  const [prospects] = useState<Prospect[]>(MOCK_PROSPECTS);
-  const [events] = useState<EventOpportunity[]>(MOCK_EVENTS);
-  const [signals] = useState<MarketSignal[]>(MOCK_SIGNALS);
+  const { isSandbox } = getClientConfig();
+  const [prospects] = useState<Prospect[]>(isSandbox ? MOCK_PROSPECTS : []);
+  const [events] = useState<EventOpportunity[]>(isSandbox ? MOCK_EVENTS : []);
+  const [signals] = useState<MarketSignal[]>(isSandbox ? MOCK_SIGNALS : []);
   const [subTab, setSubTab] = useState<"prospects" | "events" | "signals" | "content" | "research">("prospects");
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null);
   const [generatingMessage, setGeneratingMessage] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState("");
   const [addedProspects, setAddedProspects] = useState<Set<string>>(new Set());
+
+  if (!isSandbox && prospects.length === 0 && events.length === 0 && signals.length === 0) {
+    return (
+      <div style={{ padding: "24px 32px" }}>
+        <EmptyState
+          icon={<Radar size={28} />}
+          title="No prospecting data"
+          description="Prospect intelligence, events, and market signals will populate once integrations are connected."
+        />
+      </div>
+    );
+  }
 
   const copyToClipboard = (text: string) => {
     if (onCopyMessage) onCopyMessage(text);
