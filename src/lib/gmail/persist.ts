@@ -1,11 +1,33 @@
+import { createHash } from "crypto";
 import { SupabaseClient } from "@supabase/supabase-js";
 import type { CommunicationThread } from "@/lib/types";
+
+/**
+ * Generate a deterministic UUID v5-like identifier from a string.
+ * This ensures the same Gmail thread/message always maps to the same UUID,
+ * allowing correct upsert behavior with Supabase UUID primary keys.
+ */
+function toUuid(input: string): string {
+  const hash = createHash("sha256").update(input).digest("hex");
+  // Format as UUID with version 5 and variant bits
+  const v = "5"; // version nibble
+  const variantNibble = ((parseInt(hash[16], 16) & 0x3) | 0x8).toString(16);
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    v + hash.slice(13, 16),
+    variantNibble + hash.slice(17, 20),
+    hash.slice(20, 32),
+  ].join("-");
+}
 
 /**
  * Persist Gmail threads into the conversations + messages tables.
  * Uses batched upserts for performance (critical on Vercel serverless).
  *
- * This bridges Gmail live-fetched data into the DB so that:
+ * Gmail IDs are hashed into deterministic UUIDs so that:
+ * - The UUID primary key constraint is satisfied
+ * - Repeated syncs correctly upsert (no duplicates)
  * - Vasco can query email history
  * - Follow-up recommendations use real email data
  * - Email metrics can be computed from DB
@@ -32,9 +54,11 @@ export async function persistGmailThreads(
   const conversationRecords = allThreads.map((thread) => {
     const leadId = thread.leadId === "unmatched" ? null : thread.leadId;
     const lastMsg = thread.messages[thread.messages.length - 1];
+    // Deterministic UUID from user + gmail thread ID
+    const convUuid = toUuid(`conv-${userId}-${thread.id}`);
 
     return {
-      id: thread.id,
+      id: convUuid,
       user_id: userId,
       lead_id: leadId,
       channel: "email",
@@ -45,7 +69,11 @@ export async function persistGmailThreads(
       message_count: thread.messages.length,
       unread_count: thread.unreadCount || 0,
       status: "active",
-      metadata: { source: "gmail", synced_at: now },
+      metadata: {
+        source: "gmail",
+        gmail_thread_id: thread.id.replace("gmail-", ""),
+        synced_at: now,
+      },
       updated_at: now,
     };
   });
@@ -53,32 +81,37 @@ export async function persistGmailThreads(
   // Build all message records at once
   const messageRecords = allThreads.flatMap((thread) => {
     const leadId = thread.leadId === "unmatched" ? null : thread.leadId;
+    const convUuid = toUuid(`conv-${userId}-${thread.id}`);
 
-    return thread.messages.map((msg) => ({
-      id: msg.id,
-      user_id: userId,
-      lead_id: leadId,
-      thread_id: thread.id,
-      channel: "email",
-      direction: msg.direction || "inbound",
-      subject: msg.subject || null,
-      body: msg.body || "",
-      status: msg.status || "delivered",
-      sender: msg.sender || "",
-      recipient: null,
-      attachments: [],
-      metadata: {
-        source: "gmail",
-        gmail_thread_id: thread.id.replace("gmail-", ""),
-        gmail_message_id: msg.id.replace("gmail-", ""),
-      },
-      has_unsubscribe: false,
-      has_physical_address: false,
-      compliance_checked: false,
-      sent_at: msg.direction === "outbound" ? msg.date : null,
-      created_at: msg.date || now,
-      updated_at: now,
-    }));
+    return thread.messages.map((msg) => {
+      const msgUuid = toUuid(`msg-${userId}-${msg.id}`);
+
+      return {
+        id: msgUuid,
+        user_id: userId,
+        lead_id: leadId,
+        thread_id: convUuid, // Links to conversation UUID
+        channel: "email",
+        direction: msg.direction || "inbound",
+        subject: msg.subject || null,
+        body: msg.body || "",
+        status: msg.status || "delivered",
+        sender: msg.sender || "",
+        recipient: null,
+        attachments: [],
+        metadata: {
+          source: "gmail",
+          gmail_thread_id: thread.id.replace("gmail-", ""),
+          gmail_message_id: msg.id.replace("gmail-", ""),
+        },
+        has_unsubscribe: false,
+        has_physical_address: false,
+        compliance_checked: false,
+        sent_at: msg.direction === "outbound" ? msg.date : null,
+        created_at: msg.date || now,
+        updated_at: now,
+      };
+    });
   });
 
   // Batch upsert conversations (50 at a time)
@@ -92,7 +125,10 @@ export async function persistGmailThreads(
       .upsert(batch, { onConflict: "id" });
 
     if (error) {
-      console.error(`[persist] Conversations batch ${Math.floor(i / BATCH_SIZE) + 1} failed:`, error);
+      console.error(
+        `[persist] Conversations batch ${Math.floor(i / BATCH_SIZE) + 1} failed:`,
+        error
+      );
     } else {
       conversationsUpserted += batch.length;
     }
@@ -109,7 +145,10 @@ export async function persistGmailThreads(
       .upsert(batch, { onConflict: "id" });
 
     if (error) {
-      console.error(`[persist] Messages batch ${Math.floor(i / MSG_BATCH_SIZE) + 1} failed:`, error);
+      console.error(
+        `[persist] Messages batch ${Math.floor(i / MSG_BATCH_SIZE) + 1} failed:`,
+        error
+      );
     } else {
       messagesUpserted += batch.length;
     }
