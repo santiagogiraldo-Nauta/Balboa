@@ -19,6 +19,7 @@ interface Props {
   generatingForLeadId?: string | null;
   defaultTab?: "today" | "leads" | "followups";
   hideTabNav?: boolean;
+  hideSummaryStrip?: boolean;
 }
 
 // ── Helpers ──
@@ -89,7 +90,7 @@ function urgTag(days: number) {
 
 // ── Component ──
 
-export default function OutreachCommandCenter({ leads, onNavigateToLead, onUpdateLead, onGenerateMessage, onCopyMessage, generatingForLeadId, defaultTab, hideTabNav }: Props) {
+export default function OutreachCommandCenter({ leads, onNavigateToLead, onUpdateLead, onGenerateMessage, onCopyMessage, generatingForLeadId, defaultTab, hideTabNav, hideSummaryStrip }: Props) {
   const [tab, setTab] = useState<"today" | "leads" | "followups">(defaultTab || "today");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "positive" | "neutral" | "negative" | "not_contacted">("all");
@@ -175,33 +176,35 @@ export default function OutreachCommandCenter({ leads, onNavigateToLead, onUpdat
   // ── Render ──
   return (
     <div>
-      {/* Top stats bar — always visible */}
-      <div className="flex items-center gap-4 mb-5 flex-wrap">
-        <div className="flex items-center gap-2">
-          {counts.overdue > 0 && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#fef2f2", color: "#dc2626" }}>
-              <AlertTriangle className="w-3.5 h-3.5" /> {counts.overdue} overdue
+      {/* Top stats bar */}
+      {!hideSummaryStrip && (
+        <div className="flex items-center gap-4 mb-5 flex-wrap">
+          <div className="flex items-center gap-2">
+            {counts.overdue > 0 && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#fef2f2", color: "#dc2626" }}>
+                <AlertTriangle className="w-3.5 h-3.5" /> {counts.overdue} overdue
+              </span>
+            )}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#fff7ed", color: "#ea580c" }}>
+              <Clock className="w-3.5 h-3.5" /> {counts.today} today
             </span>
-          )}
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: "#fff7ed", color: "#ea580c" }}>
-            <Clock className="w-3.5 h-3.5" /> {counts.today} today
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 500, background: "#eff6ff", color: "#2563eb" }}>
-            <Mail className="w-3.5 h-3.5" /> {counts.noReply} no reply
-          </span>
-          {counts.meetings > 0 && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 500, background: "#ecfdf5", color: "#059669" }}>
-              <CalendarClock className="w-3.5 h-3.5" /> {counts.meetings} meeting{counts.meetings > 1 ? "s" : ""}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 500, background: "#eff6ff", color: "#2563eb" }}>
+              <Mail className="w-3.5 h-3.5" /> {counts.noReply} no reply
             </span>
-          )}
+            {counts.meetings > 0 && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 500, background: "#ecfdf5", color: "#059669" }}>
+                <CalendarClock className="w-3.5 h-3.5" /> {counts.meetings} meeting{counts.meetings > 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+          <div className="ml-auto flex items-center gap-1.5" style={{ background: "var(--balboa-bg-alt)", borderRadius: 8, padding: "4px 10px" }}>
+            <Search className="w-3.5 h-3.5" style={{ color: "var(--balboa-text-muted)" }} />
+            <input type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
+              style={{ background: "transparent", border: "none", outline: "none", fontSize: 12, color: "var(--balboa-text-primary)", width: 150 }}
+            />
+          </div>
         </div>
-        <div className="ml-auto flex items-center gap-1.5" style={{ background: "var(--balboa-bg-alt)", borderRadius: 8, padding: "4px 10px" }}>
-          <Search className="w-3.5 h-3.5" style={{ color: "var(--balboa-text-muted)" }} />
-          <input type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
-            style={{ background: "transparent", border: "none", outline: "none", fontSize: 12, color: "var(--balboa-text-primary)", width: 150 }}
-          />
-        </div>
-      </div>
+      )}
 
       {/* Tabs — hidden when parent controls which view to show */}
       {!hideTabNav && (

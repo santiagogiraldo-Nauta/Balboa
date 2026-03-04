@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Mail, MessageSquare, Check, ChevronRight } from "lucide-react";
+import { Clock, CheckCircle, MessageSquare, Send, AlertCircle } from "lucide-react";
 import type { Lead, Deal, SupportedLanguage, SalesEvent } from "@/lib/types";
 import SectionTabBar from "./SectionTabBar";
 import OutreachCommandCenter from "./OutreachCommandCenter";
@@ -43,236 +43,28 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-// ── KPI chip data ──
+// ── Stat pill (inline in the brief bar) ──
 
-interface KPIChipData {
-  icon: string;
-  count: number;
+function StatPill({ icon, value, label, color }: {
+  icon: React.ReactNode;
+  value: number;
   label: string;
   color: string;
-}
-
-// ── KPI Chip (compact, inline) ──
-
-function KPIChip({ icon, count, label, color }: KPIChipData) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "6px 12px",
-        background: `${color}08`,
-        borderRadius: 8,
-        border: `1px solid ${color}20`,
-        cursor: "pointer",
-        transition: "all 0.15s ease",
-        whiteSpace: "nowrap",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = `${color}14`;
-        e.currentTarget.style.borderColor = `${color}40`;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = `${color}08`;
-        e.currentTarget.style.borderColor = `${color}20`;
-      }}
-    >
-      <span style={{ fontSize: 14, lineHeight: 1 }}>{icon}</span>
-      <span style={{ fontSize: 15, fontWeight: 800, color, lineHeight: 1 }}>{count}</span>
-      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--balboa-text-muted)" }}>{label}</span>
-    </div>
-  );
-}
-
-// ── Priority row item ──
-
-interface PriorityItem {
-  lead: Lead;
-  urgency: "overdue" | "today" | "hot";
-  daysLeft: number;
-}
-
-function PriorityRow({
-  item,
-  onNavigate,
-  onGenerate,
-  onCopy,
-}: {
-  item: PriorityItem;
-  onNavigate: (id: string) => void;
-  onGenerate: (lead: Lead, type: string) => void;
-  onCopy: (text: string) => void;
 }) {
-  void onCopy;
-  const lead = item.lead;
-  const initials = `${lead.firstName?.[0] || ""}${lead.lastName?.[0] || ""}`.toUpperCase();
-
-  const urgencyBadge = {
-    overdue: { bg: "rgba(220,38,38,0.1)", color: "#dc2626", label: "Overdue" },
-    today: { bg: "rgba(217,119,6,0.1)", color: "#d97706", label: "Today" },
-    hot: { bg: "rgba(220,38,38,0.08)", color: "#dc2626", label: "Hot" },
-  }[item.urgency];
-
+  if (value === 0) return null;
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "10px 12px",
-        borderRadius: 8,
-        cursor: "pointer",
-        transition: "background 0.1s ease",
-      }}
-      onClick={() => onNavigate(lead.id)}
-      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(30,42,94,0.03)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-    >
-      {/* Avatar */}
-      <div style={{
-        width: 32,
-        height: 32,
-        borderRadius: "50%",
-        background: "var(--balboa-navy)",
-        color: "white",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 11,
-        fontWeight: 700,
-        flexShrink: 0,
-      }}>
-        {initials}
-      </div>
-
-      {/* Info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--balboa-navy)" }}>
-            {lead.firstName} {lead.lastName}
-          </span>
-          <span style={{
-            fontSize: 9,
-            fontWeight: 700,
-            padding: "1px 6px",
-            borderRadius: 4,
-            background: urgencyBadge.bg,
-            color: urgencyBadge.color,
-            textTransform: "uppercase",
-          }}>
-            {urgencyBadge.label}
-          </span>
-        </div>
-        <div style={{ fontSize: 11, color: "var(--balboa-text-muted)", marginTop: 1 }}>
-          {lead.position} @ {lead.company}
-        </div>
-      </div>
-
-      {/* Quick actions */}
-      <div style={{ display: "flex", gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-        <button
-          onClick={() => onGenerate(lead, "follow_up")}
-          title="Draft email"
-          style={{
-            padding: 5,
-            background: "transparent",
-            border: "1px solid var(--balboa-border-light)",
-            borderRadius: 6,
-            cursor: "pointer",
-            display: "flex",
-            color: "var(--balboa-text-muted)",
-          }}
-        >
-          <Mail size={13} />
-        </button>
-        <button
-          onClick={() => onGenerate(lead, "linkedin_message")}
-          title="Draft LinkedIn message"
-          style={{
-            padding: 5,
-            background: "transparent",
-            border: "1px solid var(--balboa-border-light)",
-            borderRadius: 6,
-            cursor: "pointer",
-            display: "flex",
-            color: "var(--balboa-text-muted)",
-          }}
-        >
-          <MessageSquare size={13} />
-        </button>
-        <button
-          onClick={() => onNavigate(lead.id)}
-          title="Mark done"
-          style={{
-            padding: 5,
-            background: "transparent",
-            border: "1px solid var(--balboa-border-light)",
-            borderRadius: 6,
-            cursor: "pointer",
-            display: "flex",
-            color: "var(--balboa-text-muted)",
-          }}
-        >
-          <Check size={13} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── LinkedIn summary row ──
-
-function LinkedInSummaryRow({ lead, onNavigate }: { lead: Lead; onNavigate: (id: string) => void }) {
-  const initials = `${lead.firstName?.[0] || ""}${lead.lastName?.[0] || ""}`.toUpperCase();
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "8px 12px",
-        borderRadius: 8,
-        cursor: "pointer",
-        transition: "background 0.1s ease",
-      }}
-      onClick={() => onNavigate(lead.id)}
-      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(30,42,94,0.03)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-    >
-      <div style={{
-        width: 28,
-        height: 28,
-        borderRadius: "50%",
-        background: "#0077b5",
-        color: "white",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 10,
-        fontWeight: 700,
-        flexShrink: 0,
-      }}>
-        {initials}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--balboa-navy)" }}>
-          {lead.firstName} {lead.lastName}
-        </span>
-        <span style={{ fontSize: 11, color: "var(--balboa-text-muted)", marginLeft: 6 }}>
-          {lead.company}
-        </span>
-      </div>
-      <span style={{
-        fontSize: 10,
-        fontWeight: 600,
-        padding: "2px 6px",
-        borderRadius: 4,
-        background: "rgba(0,119,181,0.08)",
-        color: "#0077b5",
-      }}>
-        LinkedIn
-      </span>
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 5,
+      padding: "4px 10px",
+      borderRadius: 6,
+      background: `${color}0a`,
+      border: `1px solid ${color}18`,
+    }}>
+      <span style={{ color, display: "flex" }}>{icon}</span>
+      <span style={{ fontSize: 13, fontWeight: 800, color, lineHeight: 1 }}>{value}</span>
+      <span style={{ fontSize: 11, fontWeight: 500, color: "var(--balboa-text-muted)" }}>{label}</span>
     </div>
   );
 }
@@ -291,84 +83,36 @@ export default function HomeSection({
 }: HomeSectionProps) {
   const [activeTab, setActiveTab] = useState<HomeTab>("actions");
 
-  // ── Compute KPI chips ──
+  // Suppress unused variable warnings
+  void deals;
+  void events;
 
-  const kpiChips = useMemo((): KPIChipData[] => {
-    const hotLeads = leads.filter(
-      (l) => !l.disqualifyReason && (l.icpScore?.tier === "hot" || l.icpScore?.tier === "warm")
-    );
-    const proposalDeals = deals.filter(
-      (d) => d.dealStage === "proposal" || d.dealStage === "negotiation"
-    );
-    const meddicGapDeals = deals.filter((d) => {
-      const missing = !d.amount || !d.probability || !d.nextAction || !d.strategyRecommendation || d.dealStage === "qualification";
-      return missing && d.dealStage !== "closed_won" && d.dealStage !== "closed_lost";
-    });
-    const meetingLeads = leads.filter((l) => l.meetingScheduled === true);
-    const upcomingEvents = events.filter((ev) => {
-      const d = daysUntil(ev.date);
-      return d >= 0 && d <= 14 && ev.status !== "completed";
-    });
-    const linkedInOnly = leads.filter((l) => l.channels?.linkedin && !l.channels?.email);
+  // ── Key stats for the brief bar ──
 
-    return [
-      { icon: "\uD83D\uDD25", count: hotLeads.length, label: "Hot", color: "#dc2626" },
-      { icon: "\uD83D\uDCCB", count: proposalDeals.length, label: "Proposals", color: "#2563eb" },
-      { icon: "\uD83D\uDCCA", count: meddicGapDeals.length, label: "MEDDIC", color: "#d97706" },
-      { icon: "\uD83D\uDCDE", count: meetingLeads.length, label: "Prep", color: "#059669" },
-      { icon: "\uD83D\uDCC5", count: upcomingEvents.length, label: "Events", color: "#7c3aed" },
-      { icon: "\uD83D\uDD17", count: linkedInOnly.length, label: "LinkedIn", color: "#0077b5" },
-    ];
-  }, [leads, deals, events]);
+  const stats = useMemo(() => {
+    const dueToday = leads.filter((l) => {
+      const d = daysUntil(l.nextStepDate);
+      return d <= 0 && !l.disqualifyReason;
+    }).length;
 
-  // ── Greeting summary ──
-
-  const greetingSummary = useMemo(() => {
-    const actionableCount = leads.filter(
-      (l) => !l.disqualifyReason && (l.icpScore?.tier === "hot" || l.icpScore?.tier === "warm")
+    const positiveReplies = leads.filter(
+      (l) => l.contactStatus === "positive" && !l.disqualifyReason
     ).length;
-    const readyDrafts = leads.reduce(
+
+    const draftsReady = leads.reduce(
       (acc, l) => acc + l.draftMessages.filter((d) => d.status === "draft").length,
       0
     );
-    return { actionableCount, readyDrafts };
-  }, [leads]);
 
-  // ── Priority queue (top 5 most urgent) ──
+    const noReply = leads.filter(
+      (l) =>
+        l.contactStatus === "not_contacted" &&
+        l.emailsSentCount &&
+        l.emailsSentCount > 0 &&
+        !l.disqualifyReason
+    ).length;
 
-  const priorityItems = useMemo((): PriorityItem[] => {
-    const items: PriorityItem[] = [];
-
-    leads.forEach((l) => {
-      if (l.disqualifyReason) return;
-      const d = daysUntil(l.nextStepDate);
-      if (d < 0) {
-        items.push({ lead: l, urgency: "overdue", daysLeft: d });
-      } else if (d === 0) {
-        items.push({ lead: l, urgency: "today", daysLeft: 0 });
-      } else if (l.icpScore?.tier === "hot") {
-        items.push({ lead: l, urgency: "hot", daysLeft: d });
-      }
-    });
-
-    // Sort: overdue first (most overdue), then today, then hot
-    items.sort((a, b) => {
-      const urgencyOrder = { overdue: 0, today: 1, hot: 2 };
-      if (urgencyOrder[a.urgency] !== urgencyOrder[b.urgency]) {
-        return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
-      }
-      return a.daysLeft - b.daysLeft;
-    });
-
-    return items.slice(0, 5);
-  }, [leads]);
-
-  // ── LinkedIn-only leads (top 3) ──
-
-  const linkedInLeads = useMemo(() => {
-    return leads
-      .filter((l) => l.channels?.linkedin && !l.channels?.email && !l.disqualifyReason)
-      .slice(0, 3);
+    return { dueToday, positiveReplies, draftsReady, noReply };
   }, [leads]);
 
   // ── Tab badge counts ──
@@ -418,139 +162,40 @@ export default function HomeSection({
       {/* ══════════ ACTIONS TAB ══════════ */}
       {activeTab === "actions" && (
         <div>
-          {/* Greeting — compact */}
-          <div style={{ marginBottom: 14 }}>
-            <h2 style={{
-              fontSize: 18,
-              fontWeight: 800,
-              color: "var(--balboa-navy)",
-              letterSpacing: "-0.02em",
-              lineHeight: 1.2,
-              margin: 0,
-            }}>
-              {getGreeting()} {"\uD83D\uDC4B"}
-            </h2>
-            <p style={{
-              fontSize: 12,
-              color: "var(--balboa-text-muted)",
-              marginTop: 3,
-              lineHeight: 1.4,
-              margin: 0,
-            }}>
-              <strong style={{ color: "var(--balboa-navy)" }}>{greetingSummary.actionableCount}</strong> people to reach out to
-              {greetingSummary.readyDrafts > 0 && (
-                <>, <strong style={{ color: "var(--balboa-blue)" }}>{greetingSummary.readyDrafts}</strong> message{greetingSummary.readyDrafts > 1 ? "s" : ""} ready</>
-              )}.
-              {" "}Let&apos;s go.
-            </p>
-          </div>
-
-          {/* KPI strip — compact horizontal chips */}
+          {/* ── Daily Brief Bar ── */}
           <div style={{
             display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 16px",
+            background: "linear-gradient(135deg, rgba(30,42,94,0.04) 0%, rgba(37,99,235,0.04) 100%)",
+            borderRadius: 10,
+            marginBottom: 16,
+            gap: 12,
             flexWrap: "wrap",
-            gap: 6,
-            marginBottom: 20,
           }}>
-            {kpiChips.map((chip) => (
-              <KPIChip key={chip.label} {...chip} />
-            ))}
-          </div>
-
-          {/* Priority Queue — top 5 */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 8,
-            }}>
-              <h3 style={{
-                fontSize: 13,
+            {/* Left: greeting */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 18 }}>{"\uD83D\uDC4B"}</span>
+              <span style={{
+                fontSize: 15,
                 fontWeight: 700,
                 color: "var(--balboa-navy)",
-                textTransform: "uppercase",
-                letterSpacing: "0.03em",
-                margin: 0,
               }}>
-                Priority Queue
-              </h3>
-              <button
-                onClick={() => setActiveTab("followups")}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "var(--balboa-blue)",
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 2,
-                  padding: 0,
-                }}
-              >
-                View all follow-ups <ChevronRight size={12} />
-              </button>
+                {getGreeting()}
+              </span>
             </div>
 
-            <div className="card" style={{ padding: 4, overflow: "hidden" }}>
-              {priorityItems.length > 0 ? (
-                priorityItems.map((item) => (
-                  <PriorityRow
-                    key={item.lead.id}
-                    item={item}
-                    onNavigate={onNavigateToLead}
-                    onGenerate={onGenerateMessage}
-                    onCopy={onCopyMessage}
-                  />
-                ))
-              ) : (
-                <div style={{
-                  padding: 24,
-                  textAlign: "center",
-                  color: "var(--balboa-text-muted)",
-                  fontSize: 13,
-                }}>
-                  No urgent items — you&apos;re all caught up! 🎉
-                </div>
-              )}
+            {/* Right: stat pills — only show non-zero */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <StatPill icon={<Clock size={12} />} value={stats.dueToday} label="due today" color="#dc2626" />
+              <StatPill icon={<CheckCircle size={12} />} value={stats.positiveReplies} label="positive" color="#059669" />
+              <StatPill icon={<Send size={12} />} value={stats.draftsReady} label="drafts ready" color="#2563eb" />
+              <StatPill icon={<AlertCircle size={12} />} value={stats.noReply} label="no reply" color="#d97706" />
             </div>
           </div>
 
-          {/* LinkedIn Summary — top 3 */}
-          {linkedInLeads.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 8,
-              }}>
-                <h3 style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "var(--balboa-navy)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.03em",
-                  margin: 0,
-                }}>
-                  LinkedIn Connections
-                </h3>
-                <span style={{ fontSize: 11, color: "var(--balboa-text-muted)" }}>
-                  {linkedInLeads.length} of {leads.filter((l) => l.channels?.linkedin && !l.channels?.email).length}
-                </span>
-              </div>
-
-              <div className="card" style={{ padding: 4, overflow: "hidden" }}>
-                {linkedInLeads.map((lead) => (
-                  <LinkedInSummaryRow key={lead.id} lead={lead} onNavigate={onNavigateToLead} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Compact Outreach Command Center — still available for power users */}
+          {/* ── Action List — the real deal ── */}
           <OutreachCommandCenter
             leads={leads}
             onNavigateToLead={onNavigateToLead}
@@ -560,7 +205,20 @@ export default function HomeSection({
             generatingForLeadId={generatingForLeadId}
             defaultTab="today"
             hideTabNav
+            hideSummaryStrip
           />
+
+          {/* ── LinkedIn Queue below ── */}
+          <div style={{ marginTop: 24 }}>
+            <LinkedInQueue
+              leads={leads}
+              onNavigateToLead={onNavigateToLead}
+              onUpdateLead={onUpdateLead}
+              onGenerateMessage={onGenerateMessage}
+              onCopyMessage={onCopyMessage}
+              generatingForLeadId={generatingForLeadId}
+            />
+          </div>
         </div>
       )}
 
