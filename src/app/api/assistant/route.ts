@@ -130,16 +130,22 @@ Just ask — I have full context on every lead, deal, and touchpoint.`;
 // ── Main route ──
 
 export async function POST(req: NextRequest) {
+  // Parse body and auth up front so they're available in catch block
+  let messages: { role: string; content: string }[] = [];
+  let context = "";
+
   try {
     const { user, supabase, error: authError } = await getAuthUser();
     if (authError) return authError;
 
-    const { messages, context } = await req.json();
+    const body = await req.json();
+    messages = body.messages || [];
+    context = body.context || "";
 
     // If no API key, use sandbox response
     if (!anthropic || !HAS_API_KEY) {
       const latestMessage = messages[messages.length - 1]?.content || "";
-      const sandboxMessage = generateSandboxResponse(latestMessage, context || "");
+      const sandboxMessage = generateSandboxResponse(latestMessage, context);
       return NextResponse.json({ message: sandboxMessage, sandbox: true });
     }
 
@@ -204,10 +210,16 @@ ${context}
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error("Assistant API error:", errMsg);
 
-    // Return a more helpful error with sandbox fallback
+    // Graceful fallback: use sandbox response with whatever context we have
+    if (messages.length > 0) {
+      const latestMessage = messages[messages.length - 1]?.content || "";
+      const sandboxMessage = generateSandboxResponse(latestMessage, context);
+      return NextResponse.json({ message: sandboxMessage, sandbox: true });
+    }
+
     return NextResponse.json(
       {
-        message: `I couldn't connect to the AI service right now (${errMsg.includes("API") || errMsg.includes("key") ? "API key issue" : "temporary error"}). Here's what I can see from your pipeline — try asking me again in a moment.`,
+        message: `I couldn't connect right now. Try asking me again in a moment.`,
         error: true,
       },
       { status: 500 }
