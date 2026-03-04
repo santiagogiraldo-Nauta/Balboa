@@ -40,8 +40,10 @@ function parseDisplayName(displayName: string): {
     return { firstName: "", lastName: "" };
   }
 
+  // Strip email in angle brackets: "Rafa Santiago <rafa@getnauta.com>" → "Rafa Santiago"
+  let cleaned = displayName.replace(/<[^>]+>/g, "").trim();
   // Remove quotes and extra whitespace
-  const cleaned = displayName.replace(/["']/g, "").trim();
+  cleaned = cleaned.replace(/["']/g, "").trim();
   const parts = cleaned.split(/\s+/);
 
   if (parts.length === 0) {
@@ -251,7 +253,7 @@ export async function POST(request: NextRequest) {
     // Check which emails already exist as leads
     const { data: existingLeads } = await supabase
       .from("leads")
-      .select("email")
+      .select("id, email, first_name, last_name")
       .eq("user_id", user.id);
 
     const existingEmails = new Set(
@@ -259,6 +261,30 @@ export async function POST(request: NextRequest) {
         l.email?.toLowerCase()
       )
     );
+
+    // Fix existing leads with "<email>" in their names (from previous import)
+    let fixedCount = 0;
+    for (const existing of existingLeads || []) {
+      const e = existing as { id: string; email: string; first_name: string; last_name: string };
+      const hasAngleBracket = (e.first_name || "").includes("<") || (e.last_name || "").includes("<");
+      if (hasAngleBracket) {
+        const contact = filteredContacts.find((c) => c.email === e.email?.toLowerCase());
+        if (contact && (contact.firstName || contact.lastName)) {
+          await supabase
+            .from("leads")
+            .update({
+              first_name: contact.firstName,
+              last_name: contact.lastName,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", e.id);
+          fixedCount++;
+        }
+      }
+    }
+    if (fixedCount > 0) {
+      console.log(`[gmail-import] Fixed ${fixedCount} lead names with angle brackets`);
+    }
 
     // Separate new contacts from existing ones
     const newContacts = filteredContacts.filter(
@@ -270,6 +296,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           imported: 0,
+          fixed: fixedCount,
           skipped: skippedCount,
           total: filteredContacts.length,
           contacts: [],

@@ -261,6 +261,26 @@ export default function Dashboard() {
               setLeads(dbLeads);
             }
           }
+
+          // Re-sync Gmail to re-match threads against newly imported leads
+          console.log("[Balboa] Re-syncing Gmail to match against new leads...");
+          try {
+            const syncRes = await fetch("/api/gmail/sync");
+            const syncData = await syncRes.json();
+            if (syncData.connected) {
+              const merged: Record<string, CommunicationThread[]> = {};
+              for (const [leadId, threads] of Object.entries(syncData.matched as Record<string, CommunicationThread[]>)) {
+                if (!merged[leadId]) merged[leadId] = [];
+                merged[leadId].push(...threads);
+              }
+              setCommunications(merged);
+              setUnmatchedThreads(syncData.unmatched || []);
+              localStorage.setItem("balboa_gmail_last_sync", String(Date.now()));
+              console.log(`[Balboa] Re-sync complete: ${syncData.matchedCount || 0} matched, ${syncData.unmatchedCount || 0} unmatched`);
+            }
+          } catch (syncErr) {
+            console.error("[Balboa] Re-sync after import failed:", syncErr);
+          }
         } else {
           // Mark as imported even if 0 to prevent retries
           localStorage.setItem(LS_IMPORT_KEY, String(Date.now()));

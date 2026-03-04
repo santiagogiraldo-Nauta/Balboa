@@ -75,10 +75,13 @@ export async function GET(request: NextRequest) {
     );
 
     // Persist threads to database (conversations + messages tables)
-    // This runs in the background — don't block the response
-    persistGmailThreads(supabase, user.id, matched, unmatched).catch((err) => {
-      console.error("[gmail-sync] Persistence error:", err);
-    });
+    // Must await on Vercel — serverless functions terminate after response
+    try {
+      const persistResult = await persistGmailThreads(supabase, user.id, matched, unmatched);
+      console.log(`[gmail-sync] Persisted ${persistResult.conversationsUpserted} conversations, ${persistResult.messagesUpserted} messages`);
+    } catch (persistErr) {
+      console.error("[gmail-sync] Persistence error:", persistErr);
+    }
 
     // Update last_sync_at
     await supabase
