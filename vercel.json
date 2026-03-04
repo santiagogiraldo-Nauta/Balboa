@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "src/app/api/gmail/sync/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/gmail/import-contacts/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/amplemarket/enrich/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/amplemarket/import/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}
