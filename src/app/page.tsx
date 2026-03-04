@@ -187,6 +187,7 @@ export default function Dashboard() {
     async function syncGmail() {
       setGmailLoading(true);
       try {
+        // Use full sync (90d, 200 threads) — the API handles defaults
         const res = await fetch("/api/gmail/sync");
         const data = await res.json();
 

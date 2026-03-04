@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, Eye, Bot, Plug, Linkedin, Building2, Search, Phone } from "lucide-react";
+import { Shield, Eye, Bot, Plug, Linkedin, Building2, Phone } from "lucide-react";
 import SectionTabBar from "./SectionTabBar";
 import ComplianceDashboard from "./ComplianceDashboard";
 import LinkedInFilterSettings from "./LinkedInFilterSettings";
@@ -9,6 +9,7 @@ import LinkedInConversationList from "./LinkedInConversationList";
 import LinkedInAuditLog from "./LinkedInAuditLog";
 import AgentHubSection from "./AgentHubSection";
 import GmailIntegrationPanel from "./GmailIntegrationPanel";
+import AmplemarketIntegrationPanel from "./AmplemarketIntegrationPanel";
 import IntegrationCard from "./IntegrationCard";
 import type { Lead, SupportedLanguage } from "@/lib/types";
 
@@ -58,13 +59,7 @@ export default function SettingsSection({
             iconGradient="linear-gradient(135deg, var(--balboa-bg-alt), var(--balboa-bg-hover))"
             status="coming_soon"
           />
-          <IntegrationCard
-            name="Amplemarket"
-            description="Import prospecting lists and enrich lead data automatically."
-            icon={Search}
-            iconGradient="linear-gradient(135deg, var(--balboa-bg-alt), var(--balboa-bg-hover))"
-            status="coming_soon"
-          />
+          <AmplemarketIntegrationPanel />
           <IntegrationCard
             name="Aircall"
             description="Log call activity and sync call outcomes to your pipeline."

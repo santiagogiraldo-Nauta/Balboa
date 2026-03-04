@@ -9,8 +9,9 @@ import { matchGmailToLeads } from "@/lib/gmail/match";
  * Returns data in the CommunicationThread format the Inbox expects.
  *
  * Query params:
- *   maxResults — max threads to fetch (default 50)
- *   q — Gmail search query (default "newer_than:7d")
+ *   maxResults — max threads to fetch (default 200)
+ *   q — Gmail search query (default "newer_than:90d")
+ *   fullSync — if "true", fetch all history (no date filter, max 500)
  */
 export async function GET(request: NextRequest) {
   const { user, supabase, error } = await getAuthUser();
@@ -32,34 +33,40 @@ export async function GET(request: NextRequest) {
 
   try {
     // Parse query params
-    const maxResults = parseInt(request.nextUrl.searchParams.get("maxResults") || "50");
-    const query = request.nextUrl.searchParams.get("q") || "newer_than:7d";
+    const isFullSync = request.nextUrl.searchParams.get("fullSync") === "true";
+    const defaultMaxResults = isFullSync ? 500 : 200;
+    const defaultQuery = isFullSync ? "" : "newer_than:90d";
+
+    const maxResults = parseInt(
+      request.nextUrl.searchParams.get("maxResults") || String(defaultMaxResults)
+    );
+    const query = request.nextUrl.searchParams.get("q") || defaultQuery;
 
     // Fetch Gmail threads
     const gmailThreads = await fetchGmailThreads(gmail, { maxResults, query });
 
-    // Fetch user's leads for email matching
+    // Fetch user's leads with full data for matching (email, name, company)
     const { data: leadsData } = await supabase
       .from("leads")
-      .select("id, email:raw_data->email")
+      .select("id, email, first_name, last_name, company, linkedin_url, raw_data")
       .eq("user_id", user.id);
 
-    // Also try the top-level email field from the lead record
-    const { data: leadsWithEmail } = await supabase
-      .from("leads")
-      .select("id, email")
-      .eq("user_id", user.id);
-
-    // Merge: use direct email column first, fall back to raw_data
-    const leads = (leadsWithEmail || []).map((l) => {
-      const rawLead = leadsData?.find((r) => r.id === l.id);
+    // Build leads array with all available data for matching
+    const leads = (leadsData || []).map((l) => {
+      const rawData = l.raw_data as Record<string, unknown> | null;
       return {
-        id: l.id,
-        email: l.email || (rawLead?.email as string) || undefined,
+        id: l.id as string,
+        email:
+          (l.email as string) ||
+          (rawData?.email as string) ||
+          undefined,
+        firstName: (l.first_name as string) || "",
+        lastName: (l.last_name as string) || "",
+        company: (l.company as string) || "",
       };
     });
 
-    // Match threads to leads
+    // Match threads to leads (now with name + domain matching)
     const { matched, unmatched } = matchGmailToLeads(
       gmailThreads,
       leads,

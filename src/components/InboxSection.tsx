@@ -888,7 +888,7 @@ export default function InboxSection({
             minHeight: 0,
           }}
         >
-          {!selectedConversation || !selectedLead ? (
+          {!selectedConversation ? (
             <div
               style={{
                 flex: 1,
@@ -906,7 +906,7 @@ export default function InboxSection({
             </div>
           ) : (
             <>
-              {/* Lead mini-card */}
+              {/* Lead mini-card or sender card for unmatched */}
               <div
                 style={{
                   display: "flex",
@@ -923,7 +923,9 @@ export default function InboxSection({
                       width: 36,
                       height: 36,
                       borderRadius: "50%",
-                      background: "linear-gradient(135deg, #3b5bdb, #6366f1)",
+                      background: selectedLead
+                        ? "linear-gradient(135deg, #3b5bdb, #6366f1)"
+                        : "linear-gradient(135deg, #94a3b8, #64748b)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -933,7 +935,16 @@ export default function InboxSection({
                       flexShrink: 0,
                     }}
                   >
-                    {selectedLead.firstName[0]}{selectedLead.lastName[0]}
+                    {selectedLead
+                      ? `${selectedLead.firstName[0]}${selectedLead.lastName[0]}`
+                      : (() => {
+                          const firstMsg = selectedConversation.messages?.[0];
+                          const senderName = firstMsg?.sender || "?";
+                          const initials = senderName === "You"
+                            ? "ME"
+                            : senderName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+                          return initials || "?";
+                        })()}
                   </div>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -944,9 +955,34 @@ export default function InboxSection({
                           color: "var(--balboa-navy, #1e2a5e)",
                         }}
                       >
-                        {selectedLead.firstName} {selectedLead.lastName}
+                        {selectedLead
+                          ? `${selectedLead.firstName} ${selectedLead.lastName}`
+                          : (() => {
+                              const firstMsg = selectedConversation.messages?.find(
+                                (m: { sender?: string }) => m.sender && m.sender !== "You"
+                              );
+                              return firstMsg?.sender || selectedConversation.subject || "Unknown Sender";
+                            })()}
                       </span>
-                      <TierBadge tier={selectedLead.icpScore?.tier || "cold"} />
+                      {selectedLead ? (
+                        <TierBadge tier={selectedLead.icpScore?.tier || "cold"} />
+                      ) : (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: "#94a3b8",
+                            background: "#f1f5f9",
+                            padding: "2px 8px",
+                            borderRadius: 10,
+                          }}
+                        >
+                          Unmatched
+                        </span>
+                      )}
                     </div>
                     <div
                       style={{
@@ -954,31 +990,50 @@ export default function InboxSection({
                         color: "var(--balboa-text-secondary, #6b7280)",
                       }}
                     >
-                      {selectedLead.position} at {selectedLead.company}
+                      {selectedLead
+                        ? `${selectedLead.position} at ${selectedLead.company}`
+                        : selectedConversation.subject || "Email conversation"}
                     </div>
                   </div>
                 </div>
-                <button
-                  className="btn-secondary"
-                  onClick={() => onNavigateToLead(selectedLead.id)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    padding: "5px 12px",
-                    borderRadius: 6,
-                    border: "1px solid var(--balboa-border-light, #e5e7eb)",
-                    background: "#ffffff",
-                    color: "var(--balboa-navy, #1e2a5e)",
-                    cursor: "pointer",
-                  }}
-                >
-                  <User className="w-3 h-3" />
-                  View Full Profile
-                  <ArrowRight className="w-3 h-3" />
-                </button>
+                {selectedLead ? (
+                  <button
+                    className="btn-secondary"
+                    onClick={() => onNavigateToLead(selectedLead.id)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "5px 12px",
+                      borderRadius: 6,
+                      border: "1px solid var(--balboa-border-light, #e5e7eb)",
+                      background: "#ffffff",
+                      color: "var(--balboa-navy, #1e2a5e)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <User className="w-3 h-3" />
+                    View Full Profile
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "var(--balboa-text-muted)",
+                      padding: "5px 12px",
+                      borderRadius: 6,
+                      background: "#f8fafc",
+                      border: "1px solid var(--balboa-border-light, #e5e7eb)",
+                    }}
+                  >
+                    <Mail className="w-3 h-3" style={{ display: "inline", marginRight: 4 }} />
+                    Email Thread
+                  </span>
+                )}
               </div>
 
               {/* Message thread */}
@@ -1034,7 +1089,7 @@ export default function InboxSection({
                               color: isOutbound ? "#3b5bdb" : "var(--balboa-text-secondary, #6b7280)",
                             }}
                           >
-                            {isOutbound ? "You" : selectedLead.firstName}
+                            {isOutbound ? "You" : (selectedLead?.firstName || msg.sender || "Unknown")}
                           </span>
                           <span
                             style={{
@@ -1110,7 +1165,8 @@ export default function InboxSection({
                 <div ref={threadEndRef} />
               </div>
 
-              {/* Compose area */}
+              {/* Compose area — only shown for matched threads */}
+              {selectedLead ? (
               <div
                 style={{
                   borderTop: "1px solid var(--balboa-border-light, #e5e7eb)",
@@ -1358,6 +1414,23 @@ export default function InboxSection({
                   Press Cmd+Enter to send
                 </div>
               </div>
+              ) : (
+                /* Unmatched thread — read-only footer */
+                <div
+                  style={{
+                    borderTop: "1px solid var(--balboa-border-light, #e5e7eb)",
+                    padding: "12px 16px",
+                    background: "var(--balboa-bg-alt, #fafbfc)",
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "var(--balboa-text-muted)", lineHeight: 1.5 }}>
+                    This email thread is not matched to any lead.
+                    <br />
+                    Use <strong>Amplemarket enrichment</strong> in Settings to match leads automatically.
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
