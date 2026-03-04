@@ -39,6 +39,8 @@ interface InboxSectionProps {
   onGenerateMessage: (lead: Lead, type: string, channel?: "email" | "linkedin") => Promise<void>;
   generatingForLeadId: string | null;
   contentLanguage: SupportedLanguage;
+  /** Unmatched Gmail threads (not linked to any lead) */
+  unmatchedThreads?: CommunicationThread[];
 }
 
 // ─── Derived conversation type ──────────────────────────────────
@@ -130,6 +132,7 @@ export default function InboxSection({
   onCopyMessage,
   onGenerateMessage,
   generatingForLeadId,
+  unmatchedThreads,
 }: InboxSectionProps) {
   // State
   const [activeTab, setActiveTab] = useState<ChannelTab>("all");
@@ -141,6 +144,8 @@ export default function InboxSection({
   const [composeChannel, setComposeChannel] = useState<OutreachChannel>("linkedin");
   const [sendStatus, setSendStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [localMessages, setLocalMessages] = useState<Record<string, CommunicationMessage[]>>({});
+  const [gmailBodies, setGmailBodies] = useState<Record<string, string>>({});
+  const [loadingThread, setLoadingThread] = useState(false);
 
   const threadEndRef = useRef<HTMLDivElement>(null);
 
@@ -242,6 +247,33 @@ export default function InboxSection({
       }
     }
 
+    // 3. Unmatched Gmail threads (not linked to any lead)
+    if (unmatchedThreads && unmatchedThreads.length > 0) {
+      for (const thread of unmatchedThreads) {
+        if (thread.messages.length === 0) continue;
+        const lastMsg = thread.messages[thread.messages.length - 1];
+        // Extract sender name from the first inbound message
+        const inboundMsg = thread.messages.find(m => m.direction === "inbound");
+        const senderName = inboundMsg?.sender?.replace(/<[^>]+>/, "").trim() || "Unknown";
+
+        convos.push({
+          threadId: thread.id,
+          leadId: "unmatched",
+          leadName: senderName,
+          leadCompany: "Unmatched",
+          leadPosition: "",
+          leadTier: "cold",
+          channel: thread.channel,
+          subject: thread.subject,
+          lastMessage: lastMsg.body,
+          lastMessageDate: thread.lastMessageDate,
+          lastMessageDirection: lastMsg.direction,
+          unreadCount: thread.unreadCount,
+          messages: thread.messages,
+        });
+      }
+    }
+
     // Sort by lastMessageDate DESC
     convos.sort(
       (a, b) =>
@@ -249,7 +281,7 @@ export default function InboxSection({
     );
 
     return convos;
-  }, [communications, leads, leadMap]);
+  }, [communications, leads, leadMap, unmatchedThreads]);
 
   // Apply channel tab filter
   const channelFiltered = useMemo(() => {
@@ -342,13 +374,32 @@ export default function InboxSection({
     }
   }, [filteredConversations, selectedConversationId]);
 
-  // Handle selecting a conversation
-  const handleSelectConversation = useCallback((threadId: string) => {
+  // Handle selecting a conversation (including on-demand Gmail body loading)
+  const handleSelectConversation = useCallback(async (threadId: string) => {
     setSelectedConversationId(threadId);
     setComposeMessage("");
     setComposeSubject("");
     setSendStatus("idle");
-  }, []);
+
+    // For Gmail threads, fetch full message bodies on-demand
+    if (threadId.startsWith("gmail-") && !gmailBodies[threadId]) {
+      setLoadingThread(true);
+      try {
+        const res = await fetch(`/api/gmail/thread?threadId=${threadId}`);
+        const data = await res.json();
+        if (data.messages) {
+          const bodyMap: Record<string, string> = {};
+          for (const msg of data.messages) {
+            bodyMap[`gmail-${msg.id}`] = msg.body;
+          }
+          setGmailBodies((prev) => ({ ...prev, ...bodyMap }));
+        }
+      } catch (err) {
+        console.error("Failed to load Gmail thread body:", err);
+      }
+      setLoadingThread(false);
+    }
+  }, [gmailBodies]);
 
   // Handle send message
   const handleSendMessage = useCallback(async () => {
@@ -1023,7 +1074,11 @@ export default function InboxSection({
                               {msg.subject}
                             </div>
                           )}
-                          {msg.body}
+                          {/* Use full Gmail body if loaded, otherwise show snippet */}
+                          {gmailBodies[msg.id] || msg.body}
+                          {loadingThread && msg.id.startsWith("gmail-") && !gmailBodies[msg.id] && (
+                            <span style={{ opacity: 0.5, fontStyle: "italic", fontSize: 11 }}> Loading...</span>
+                          )}
                         </div>
 
                         {/* Status badge */}

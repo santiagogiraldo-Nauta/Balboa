@@ -74,7 +74,11 @@ export default function Dashboard() {
   const [vascoOpen, setVascoOpen] = useState(false);
   const [showDeepResearch, setShowDeepResearch] = useState(false);
   const [events] = useState<SalesEvent[]>(mockEvents);
-  const [communications] = useState<Record<string, CommunicationThread[]>>(mockCommunications);
+  const [communications, setCommunications] = useState<Record<string, CommunicationThread[]>>(mockCommunications);
+  // Gmail integration state
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailLoading, setGmailLoading] = useState(false);
+  const [unmatchedThreads, setUnmatchedThreads] = useState<CommunicationThread[]>([]);
 
   const supabase = createClient();
   const { isSandbox } = getClientConfig();
@@ -172,6 +176,68 @@ export default function Dashboard() {
     };
     loadUserAndLeads();
     return () => clearTimeout(timeout);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Gmail sync — fetch real email threads and merge with existing communications
+  useEffect(() => {
+    if (isSandbox) return; // Skip in sandbox mode
+
+    async function syncGmail() {
+      setGmailLoading(true);
+      try {
+        const res = await fetch("/api/gmail/sync");
+        const data = await res.json();
+
+        if (data.connected) {
+          setGmailConnected(true);
+          // Merge: keep non-email mock threads, replace email threads with real Gmail data
+          const merged: Record<string, CommunicationThread[]> = {};
+
+          // First add all non-email threads from mock data
+          for (const [leadId, threads] of Object.entries(mockCommunications)) {
+            merged[leadId] = (threads as CommunicationThread[]).filter((t) => t.channel !== "email");
+          }
+
+          // Then add real Gmail email threads
+          for (const [leadId, threads] of Object.entries(data.matched as Record<string, CommunicationThread[]>)) {
+            if (!merged[leadId]) merged[leadId] = [];
+            merged[leadId].push(...threads);
+          }
+
+          setCommunications(merged);
+          setUnmatchedThreads(data.unmatched || []);
+        }
+      } catch (err) {
+        console.error("Gmail sync failed:", err);
+      }
+      setGmailLoading(false);
+    }
+
+    syncGmail();
+  }, [isSandbox]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle URL params from Gmail OAuth callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gmailParam = params.get("gmail");
+    const sectionParam = params.get("section");
+
+    if (sectionParam === "settings") {
+      setSidebarSection("settings");
+    }
+
+    if (gmailParam === "connected") {
+      setGmailConnected(true);
+      setToastMessage("Gmail connected successfully");
+      setTimeout(() => setToastMessage(null), 3000);
+      // Clean up URL params
+      window.history.replaceState({}, "", "/");
+    } else if (gmailParam === "error") {
+      const reason = params.get("reason") || "unknown";
+      setToastMessage(`Gmail connection failed: ${reason}`);
+      setTimeout(() => setToastMessage(null), 3000);
+      window.history.replaceState({}, "", "/");
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist lead changes to Supabase (debounced single lead updates)
@@ -1093,6 +1159,10 @@ export default function Dashboard() {
               onGenerateMessage={generateMessage}
               generatingForLeadId={generatingForLeadId}
               contentLanguage={contentLanguage}
+              gmailConnected={gmailConnected}
+              gmailLoading={gmailLoading}
+              unmatchedThreads={unmatchedThreads}
+              onNavigateToSettings={() => setSidebarSection("settings")}
             />
           </div>
         )}

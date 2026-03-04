@@ -1,43 +1,43 @@
-// Email integration adapter stub
-// Future: SMTP/API send via SendGrid, Resend, or similar
+// Gmail integration adapter
+// Read-only sync via Google OAuth + Gmail API
+// Send capability to be added in a future phase
 
-import { config } from "../config";
 import type { OutreachAdapter, IntegrationStatus } from "./types";
 
-class EmailAdapter implements OutreachAdapter {
+class GmailEmailAdapter implements OutreachAdapter {
   name = "email";
-  displayName = "Email (SMTP/API)";
+  displayName = "Gmail";
   capabilities = [
-    "email_send",
-    "email_tracking",
-    "open_detection",
-    "click_tracking",
-    "bounce_handling",
-    "template_management",
+    "email_read",
+    "email_sync",
+    "inbox_display",
+    "lead_matching",
+    // Future: "email_send", "email_tracking"
   ];
 
   async isConnected(): Promise<boolean> {
-    return !!config.integrations.email.apiKey;
+    // Check if Gmail OAuth is configured (env vars present)
+    return !!process.env.GOOGLE_CLIENT_ID;
   }
 
   async getStatus(): Promise<IntegrationStatus> {
-    const connected = await this.isConnected();
+    const configured = !!process.env.GOOGLE_CLIENT_ID;
     return {
       name: this.name,
       displayName: this.displayName,
-      connected,
-      enabled: config.integrations.email.enabled,
-      sandboxMode: config.integrations.email.sandboxMode,
+      connected: configured,
+      enabled: configured,
+      sandboxMode: !configured,
       capabilities: this.capabilities,
     };
   }
 
   async testConnection(): Promise<{ success: boolean; error?: string }> {
-    if (!config.integrations.email.apiKey) {
-      return { success: false, error: "No API key configured" };
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return { success: false, error: "Gmail OAuth not configured. Set GOOGLE_CLIENT_ID." };
     }
-    // Future: test SMTP/API connection
-    return { success: false, error: "Email integration not yet implemented" };
+    // Per-user connection status is checked via /api/gmail/status
+    return { success: true };
   }
 
   async sendMessage(params: {
@@ -46,15 +46,13 @@ class EmailAdapter implements OutreachAdapter {
     body: string;
     metadata?: Record<string, unknown>;
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    // Future: send email via SendGrid/Resend/SMTP
-    console.log("[Email Adapter] Would send to:", params.recipientId);
-    return { success: false, error: "Email sending not yet implemented" };
+    console.log("[Gmail Adapter] Send not yet implemented:", params.recipientId);
+    return { success: false, error: "Gmail send not yet implemented — use email compose popup" };
   }
 
   async canReach(recipientId: string): Promise<boolean> {
-    // Future: validate email address
     return !!recipientId && recipientId.includes("@");
   }
 }
 
-export const emailAdapter = new EmailAdapter();
+export const emailAdapter = new GmailEmailAdapter();
