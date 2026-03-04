@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, Eye, Bot, Plug } from "lucide-react";
+import { Shield, Eye, Bot, Plug, Linkedin, Building2, Search, Phone } from "lucide-react";
 import SectionTabBar from "./SectionTabBar";
 import ComplianceDashboard from "./ComplianceDashboard";
 import LinkedInFilterSettings from "./LinkedInFilterSettings";
@@ -9,6 +9,7 @@ import LinkedInConversationList from "./LinkedInConversationList";
 import LinkedInAuditLog from "./LinkedInAuditLog";
 import AgentHubSection from "./AgentHubSection";
 import GmailIntegrationPanel from "./GmailIntegrationPanel";
+import IntegrationCard from "./IntegrationCard";
 import type { Lead, SupportedLanguage } from "@/lib/types";
 
 type SettingsTab = "compliance" | "privacy" | "agents" | "integrations";
@@ -41,7 +42,37 @@ export default function SettingsSection({
       <SectionTabBar tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "integrations" && (
-        <GmailIntegrationPanel />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 680 }}>
+          <GmailIntegrationPanel />
+          <IntegrationCard
+            name="LinkedIn"
+            description="Connect your LinkedIn account to sync prospect data and outreach activity."
+            icon={Linkedin}
+            iconGradient="linear-gradient(135deg, var(--balboa-bg-alt), var(--balboa-bg-hover))"
+            status="coming_soon"
+          />
+          <IntegrationCard
+            name="HubSpot"
+            description="Sync your CRM deals, contacts, and pipeline data with Balboa."
+            icon={Building2}
+            iconGradient="linear-gradient(135deg, var(--balboa-bg-alt), var(--balboa-bg-hover))"
+            status="coming_soon"
+          />
+          <IntegrationCard
+            name="Amplemarket"
+            description="Import prospecting lists and enrich lead data automatically."
+            icon={Search}
+            iconGradient="linear-gradient(135deg, var(--balboa-bg-alt), var(--balboa-bg-hover))"
+            status="coming_soon"
+          />
+          <IntegrationCard
+            name="Aircall"
+            description="Log call activity and sync call outcomes to your pipeline."
+            icon={Phone}
+            iconGradient="linear-gradient(135deg, var(--balboa-bg-alt), var(--balboa-bg-hover))"
+            status="coming_soon"
+          />
+        </div>
       )}
 
       {activeTab === "compliance" && (
