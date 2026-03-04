@@ -1,31 +1,32 @@
 @import "tailwindcss";
 
 :root {
-  --balboa-navy: #1e2a5e;
-  --balboa-navy-light: #2d3a6e;
-  --balboa-navy-dark: #141d45;
-  --balboa-blue: #3b5bdb;
-  --balboa-blue-light: #5c7cfa;
-  --balboa-orange: #e8590c;
-  --balboa-orange-light: #fd7e14;
+  /* ── Nauta Brand Colors ── */
+  --balboa-navy: #151B42;         /* Nauta Navy (Primary) */
+  --balboa-navy-light: #1e2a5e;   /* Lighter navy for subtle contrasts */
+  --balboa-navy-dark: #0e1230;    /* Darker navy for gradients */
+  --balboa-blue: #3B5BDB;         /* Nauta Accent Blue — CTAs, highlights */
+  --balboa-blue-light: #5C9AFF;   /* Nauta Light Blue — emphasis on dark */
+  --balboa-orange: #DF7F40;       /* Nauta Orange — brand accent */
+  --balboa-orange-light: #E89860; /* Lighter orange variant */
   --balboa-green: #2b8a3e;
   --balboa-green-light: #40c057;
   --balboa-red: #e03131;
   --balboa-red-light: #ff6b6b;
   --balboa-yellow: #f59f00;
   --balboa-bg: #ffffff;
-  --balboa-bg-alt: #f8f9fc;
-  --balboa-bg-hover: #f1f3f9;
-  --balboa-border: #e2e5ea;
-  --balboa-border-light: #eef0f3;
-  --balboa-text: #1e2a5e;
-  --balboa-text-secondary: #4a5568;
-  --balboa-text-muted: #6b7a90;
-  --balboa-text-light: #8e9cb0;
-  --balboa-shadow-sm: 0 1px 2px rgba(30, 42, 94, 0.04);
-  --balboa-shadow: 0 1px 3px rgba(30, 42, 94, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --balboa-shadow-md: 0 4px 12px rgba(30, 42, 94, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --balboa-shadow-lg: 0 8px 24px rgba(30, 42, 94, 0.1), 0 4px 8px rgba(0, 0, 0, 0.04);
+  --balboa-bg-alt: #F6F7FB;       /* Nauta Card Background */
+  --balboa-bg-hover: #EEF1FA;     /* Nauta Subtle Highlight */
+  --balboa-border: #E8EAF0;       /* Nauta Divider */
+  --balboa-border-light: #F0F2F7; /* Nauta Light Background */
+  --balboa-text: #151B42;         /* Navy — matches primary */
+  --balboa-text-secondary: #3A3F5C; /* Nauta Body Text */
+  --balboa-text-muted: #6B7194;   /* Nauta Muted Text */
+  --balboa-text-light: #8B95C9;   /* Nauta Soft Muted */
+  --balboa-shadow-sm: 0 1px 2px rgba(21, 27, 66, 0.04);
+  --balboa-shadow: 0 1px 3px rgba(21, 27, 66, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --balboa-shadow-md: 0 4px 12px rgba(21, 27, 66, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --balboa-shadow-lg: 0 8px 24px rgba(21, 27, 66, 0.1), 0 4px 8px rgba(0, 0, 0, 0.04);
   --balboa-radius: 10px;
   --balboa-radius-lg: 14px;
 }
@@ -37,7 +38,7 @@
 body {
   background: var(--balboa-bg-alt);
   color: var(--balboa-text-secondary);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-inter, 'Inter'), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
