@@ -180,14 +180,32 @@ export default function Dashboard() {
     return () => clearTimeout(timeout);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Gmail sync — fetch real email threads and merge with existing communications
+  // Gmail sync — fetch real email threads silently in the background
+  // Uses localStorage to avoid redundant syncs (5-minute cooldown)
+  const [gmailSyncDone, setGmailSyncDone] = useState(false);
+
   useEffect(() => {
     if (isSandbox) return; // Skip in sandbox mode
 
-    async function syncGmail() {
-      setGmailLoading(true);
+    const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+    const LS_KEY = "balboa_gmail_last_sync";
+
+    async function syncGmailSilently() {
+      // Check localStorage for last sync time
+      const lastSyncStr = localStorage.getItem(LS_KEY);
+      const lastSyncTime = lastSyncStr ? parseInt(lastSyncStr, 10) : 0;
+      const timeSinceSync = Date.now() - lastSyncTime;
+
+      // Skip sync if within cooldown (but still mark connected if we synced before)
+      if (lastSyncTime > 0 && timeSinceSync < SYNC_COOLDOWN_MS) {
+        console.log("[Balboa] Gmail sync skipped — last sync was", Math.round(timeSinceSync / 1000), "s ago");
+        setGmailConnected(true); // Assume still connected
+        setGmailSyncDone(true);
+        return;
+      }
+
+      // Sync silently — no loading state, no spinner
       try {
-        // Use full sync (90d, 200 threads) — the API handles defaults
         const res = await fetch("/api/gmail/sync");
         const data = await res.json();
 
@@ -204,15 +222,56 @@ export default function Dashboard() {
 
           setCommunications(merged);
           setUnmatchedThreads(data.unmatched || []);
+
+          // Store sync timestamp in localStorage
+          localStorage.setItem(LS_KEY, String(Date.now()));
         }
       } catch (err) {
         console.error("Gmail sync failed:", err);
       }
-      setGmailLoading(false);
+      setGmailSyncDone(true);
     }
 
-    syncGmail();
+    syncGmailSilently();
   }, [isSandbox]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-import Gmail contacts when sync completes with 0 leads
+  useEffect(() => {
+    if (isSandbox || !gmailSyncDone || !gmailConnected) return;
+    if (leads.length > 0) return; // Already have leads, skip import
+
+    const LS_IMPORT_KEY = "balboa_gmail_auto_imported";
+    if (localStorage.getItem(LS_IMPORT_KEY)) return; // Already imported once
+
+    async function autoImportContacts() {
+      try {
+        console.log("[Balboa] Auto-importing Gmail contacts (0 leads detected)");
+        const res = await fetch("/api/gmail/import-contacts", { method: "POST" });
+        const data = await res.json();
+
+        if (data.imported > 0) {
+          console.log(`[Balboa] Auto-imported ${data.imported} contacts from Gmail`);
+          localStorage.setItem(LS_IMPORT_KEY, String(Date.now()));
+
+          // Reload leads from database
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const dbLeads = await getLeads(supabase, user.id);
+            if (dbLeads.length > 0) {
+              setLeads(dbLeads);
+            }
+          }
+        } else {
+          // Mark as imported even if 0 to prevent retries
+          localStorage.setItem(LS_IMPORT_KEY, String(Date.now()));
+        }
+      } catch (err) {
+        console.error("[Balboa] Auto-import failed:", err);
+      }
+    }
+
+    autoImportContacts();
+  }, [isSandbox, gmailSyncDone, gmailConnected, leads.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle URL params from Gmail OAuth callback redirect
   useEffect(() => {

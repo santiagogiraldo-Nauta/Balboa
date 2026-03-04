@@ -36,12 +36,12 @@ export async function POST(request: Request) {
       // No body or invalid JSON — proceed without limit
     }
 
-    // Fetch leads without emails
+    // Fetch leads without emails (handle both NULL and empty string from CSV imports)
     let query = supabase
       .from("leads")
       .select("id, first_name, last_name, company, linkedin_url, raw_data")
       .eq("user_id", user.id)
-      .is("email", null)
+      .or("email.is.null,email.eq.")
       .order("created_at", { ascending: false });
 
     if (limit) {

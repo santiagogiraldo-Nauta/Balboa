@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, CheckCircle, XCircle, RefreshCw, Zap } from "lucide-react";
+import { Search, CheckCircle, XCircle, RefreshCw, Zap, Download } from "lucide-react";
 
 interface EnrichmentResult {
   enriched: number;
@@ -15,12 +15,24 @@ interface EnrichmentResult {
   }>;
 }
 
+interface ImportResult {
+  imported: number;
+  skipped: number;
+  total: number;
+  leadLists: number;
+  message?: string;
+  error?: string;
+}
+
 export default function AmplemarketIntegrationPanel() {
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [enriching, setEnriching] = useState(false);
   const [enrichResult, setEnrichResult] = useState<EnrichmentResult | null>(null);
   const [enrichError, setEnrichError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => {
     // Check if AMPLEMARKET_API_KEY is configured by trying the validate endpoint
@@ -71,6 +83,37 @@ export default function AmplemarketIntegrationPanel() {
     }
 
     setEnriching(false);
+  }
+
+  async function handleImport() {
+    setImporting(true);
+    setImportError(null);
+    setImportResult(null);
+
+    try {
+      const res = await fetch("/api/amplemarket/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data: ImportResult = await res.json();
+
+      if (!res.ok) {
+        setImportError(data.error || "Import failed");
+        // Still show partial results if available
+        if (data.imported !== undefined) {
+          setImportResult(data);
+        }
+        setImporting(false);
+        return;
+      }
+
+      setImportResult(data);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+    }
+
+    setImporting(false);
   }
 
   if (loading) {
@@ -223,9 +266,79 @@ export default function AmplemarketIntegrationPanel() {
                   lineHeight: 1.5,
                 }}
               >
-                Enrich your leads with email addresses, phone numbers, and
-                company data from Amplemarket&apos;s database.
+                Import contacts from your Amplemarket lead lists or enrich
+                existing leads with email addresses and company data.
               </div>
+
+              {/* Import Results */}
+              {importResult && (
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    background: importResult.imported > 0 ? "#e8f5e9" : "var(--balboa-bg-alt)",
+                    borderRadius: 8,
+                    marginBottom: 12,
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      color: importResult.imported > 0 ? "#2e7d32" : "var(--balboa-navy)",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Import Complete
+                  </div>
+                  <div style={{ color: "var(--balboa-text-secondary)" }}>
+                    <strong>{importResult.imported}</strong> contacts imported
+                    from {importResult.leadLists} lead list{importResult.leadLists !== 1 ? "s" : ""}
+                    {importResult.skipped > 0 && (
+                      <span style={{ color: "var(--balboa-text-muted)" }}>
+                        {" "}
+                        ({importResult.skipped} already existed)
+                      </span>
+                    )}
+                  </div>
+                  {importResult.imported === 0 && importResult.total > 0 && (
+                    <div
+                      style={{
+                        color: "var(--balboa-text-muted)",
+                        marginTop: 4,
+                      }}
+                    >
+                      All {importResult.total} contacts already exist as leads.
+                    </div>
+                  )}
+                  {importResult.total === 0 && (
+                    <div
+                      style={{
+                        color: "var(--balboa-text-muted)",
+                        marginTop: 4,
+                      }}
+                    >
+                      No contacts found in Amplemarket lead lists.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Import Error */}
+              {importError && (
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    background: "#fff3e0",
+                    borderRadius: 8,
+                    marginBottom: 12,
+                    fontSize: 13,
+                    color: "#e65100",
+                  }}
+                >
+                  {importError}
+                </div>
+              )}
 
               {/* Enrichment Results */}
               {enrichResult && (
@@ -288,10 +401,43 @@ export default function AmplemarketIntegrationPanel() {
               )}
 
               {/* Actions */}
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  onClick={handleImport}
+                  disabled={importing || enriching}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "9px 20px",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: "white",
+                    background: "var(--balboa-navy)",
+                    border: "none",
+                    borderRadius: 8,
+                    cursor: importing || enriching ? "not-allowed" : "pointer",
+                    opacity: importing || enriching ? 0.7 : 1,
+                  }}
+                >
+                  {importing ? (
+                    <>
+                      <RefreshCw
+                        size={14}
+                        style={{ animation: "spin 1s linear infinite" }}
+                      />
+                      Importing Contacts...
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} />
+                      Import Contacts
+                    </>
+                  )}
+                </button>
                 <button
                   onClick={handleEnrich}
-                  disabled={enriching}
+                  disabled={enriching || importing}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -303,8 +449,8 @@ export default function AmplemarketIntegrationPanel() {
                     background: "var(--balboa-blue)",
                     border: "none",
                     borderRadius: 8,
-                    cursor: enriching ? "not-allowed" : "pointer",
-                    opacity: enriching ? 0.7 : 1,
+                    cursor: enriching || importing ? "not-allowed" : "pointer",
+                    opacity: enriching || importing ? 0.7 : 1,
                   }}
                 >
                   {enriching ? (
