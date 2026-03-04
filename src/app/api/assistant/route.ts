@@ -149,11 +149,65 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: sandboxMessage, sandbox: true });
     }
 
+    // Enrich context with email activity data from DB
+    let emailContext = "";
+    if (supabase && user) {
+      try {
+        const [convResult, inboundPending, sentCount, receivedCount] = await Promise.all([
+          supabase
+            .from("conversations")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .eq("channel", "email"),
+          supabase
+            .from("conversations")
+            .select("id, subject, lead_id, last_message_date")
+            .eq("user_id", user.id)
+            .eq("channel", "email")
+            .eq("last_message_direction", "inbound")
+            .not("lead_id", "is", null)
+            .order("last_message_date", { ascending: false })
+            .limit(10),
+          supabase
+            .from("messages")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .eq("channel", "email")
+            .eq("direction", "outbound"),
+          supabase
+            .from("messages")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .eq("channel", "email")
+            .eq("direction", "inbound"),
+        ]);
+
+        const totalThreads = convResult.count || 0;
+        const sent = sentCount.count || 0;
+        const received = receivedCount.count || 0;
+        const pendingReplies = inboundPending.data || [];
+
+        if (totalThreads > 0) {
+          emailContext = `\n## EMAIL ACTIVITY
+- ${totalThreads} email threads synced from Gmail
+- ${sent} emails sent, ${received} received
+- ${pendingReplies.length} threads with unanswered inbound messages (needs reply)
+${pendingReplies.length > 0 ? `- Threads needing reply:\n${pendingReplies.slice(0, 5).map(
+  (t) => `  - "${t.subject}" (last message: ${t.last_message_date ? new Date(t.last_message_date as string).toLocaleDateString() : "unknown"})`
+).join("\n")}` : ""}
+`;
+        }
+      } catch (err) {
+        console.error("[assistant] Error fetching email context:", err);
+      }
+    }
+
     const systemPrompt = `You are Vasco, the AI sales navigator inside the Balboa platform. Named after Vasco Nunez de Balboa — the explorer who crossed uncharted jungle to discover the Pacific Ocean. Like your namesake, you chart the path forward through complex territory.
 
-You have complete real-time access to the user's sales pipeline, leads, deals, and accounts.
+You have complete real-time access to the user's sales pipeline, leads, deals, accounts, and email activity.
 
 ${context}
+${emailContext}
 
 ## YOUR PERSONALITY
 - Direct, confident, no fluff — like a seasoned navigator who knows the terrain

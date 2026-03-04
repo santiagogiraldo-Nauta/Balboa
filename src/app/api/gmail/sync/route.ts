@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/supabase/auth-check";
 import { getGmailClient, fetchGmailThreads } from "@/lib/gmail/service";
 import { matchGmailToLeads } from "@/lib/gmail/match";
+import { persistGmailThreads } from "@/lib/gmail/persist";
 
 /**
  * GET /api/gmail/sync
@@ -72,6 +73,12 @@ export async function GET(request: NextRequest) {
       leads,
       tokenRow.gmail_email
     );
+
+    // Persist threads to database (conversations + messages tables)
+    // This runs in the background — don't block the response
+    persistGmailThreads(supabase, user.id, matched, unmatched).catch((err) => {
+      console.error("[gmail-sync] Persistence error:", err);
+    });
 
     // Update last_sync_at
     await supabase

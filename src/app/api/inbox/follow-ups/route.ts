@@ -53,15 +53,45 @@ export async function POST(req: NextRequest) {
       )
       .join("\n");
 
+    // Fetch real email conversation data for these leads
+    let emailConversationData = "";
+    if (supabase && user) {
+      try {
+        const leadIds = leads.map((l: { id: string }) => l.id);
+        const { data: convData } = await supabase
+          .from("conversations")
+          .select("lead_id, subject, last_message_body, last_message_date, last_message_direction, message_count, unread_count")
+          .eq("user_id", user.id)
+          .eq("channel", "email")
+          .in("lead_id", leadIds)
+          .order("last_message_date", { ascending: false });
+
+        if (convData && convData.length > 0) {
+          emailConversationData = convData
+            .map(
+              (c) =>
+                `- Lead ${c.lead_id}: "${c.subject}" (${c.message_count} messages, last: ${c.last_message_direction} on ${c.last_message_date ? new Date(c.last_message_date as string).toLocaleDateString() : "unknown"})${
+                  (c.unread_count as number) > 0 ? " [UNREAD]" : ""
+                }`
+            )
+            .join("\n");
+        }
+      } catch (err) {
+        console.error("[follow-ups] Error fetching email data:", err);
+      }
+    }
+
     const prompt = `${BALBOA_ICP_CONTEXT}
 
 ## YOUR TASK
-You are Vasco, the AI sales intelligence assistant for Balboa. Analyze these leads and their recent activity. Determine which leads need follow-up today and why. For each recommendation: suggest the best channel (email/linkedin/sms), urgency level (urgent/high/medium/low), reason for follow-up, and a brief suggested message approach.
+You are Vasco, the AI sales intelligence assistant for Balboa. Analyze these leads and their recent activity INCLUDING EMAIL CONVERSATIONS. Determine which leads need follow-up today and why. For each recommendation: suggest the best channel (email/linkedin/sms), urgency level (urgent/high/medium/low), reason for follow-up, and a brief suggested message approach.
 
 Return JSON: { "followUps": [{ "leadId": "<id>", "leadName": "<full name>", "company": "<company>", "channel": "<email|linkedin|sms>", "urgency": "<urgent|high|medium|low>", "reason": "<why follow-up is needed>", "suggestedAction": "<what to do>", "suggestedMessage": "<brief message approach>" }] }
 
 ## LEADS DATA
 ${leadsInfo}
+
+${emailConversationData ? `## EMAIL CONVERSATIONS (from Gmail)\n${emailConversationData}` : ""}
 
 ${conversationSummaries ? `## CONVERSATION SUMMARIES\n${conversationSummaries}` : ""}
 

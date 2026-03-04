@@ -146,8 +146,27 @@ export default function InboxSection({
   const [localMessages, setLocalMessages] = useState<Record<string, CommunicationMessage[]>>({});
   const [gmailBodies, setGmailBodies] = useState<Record<string, string>>({});
   const [loadingThread, setLoadingThread] = useState(false);
+  const [emailMetrics, setEmailMetrics] = useState<{
+    totalThreads: number;
+    matchedThreads: number;
+    unmatchedThreads: number;
+    responseRate: number;
+    messagesToday: number;
+    sent: number;
+    received: number;
+  } | null>(null);
 
   const threadEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch email metrics from persisted data
+  useEffect(() => {
+    fetch("/api/gmail/metrics")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && !data.error) setEmailMetrics(data);
+      })
+      .catch(() => {});
+  }, []);
 
   // Build a lead lookup map
   const leadMap = useMemo(() => {
@@ -695,6 +714,58 @@ export default function InboxSection({
           </div>
         </div>
       </div>
+
+      {/* Email metrics bar */}
+      {emailMetrics && emailMetrics.totalThreads > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 20,
+            padding: "8px 20px",
+            background: "var(--balboa-bg-alt, #fafbfc)",
+            borderTop: "1px solid var(--balboa-border-light, #e5e7eb)",
+            fontSize: 12,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontWeight: 700, color: "var(--balboa-navy)" }}>
+              {emailMetrics.totalThreads}
+            </span>
+            <span style={{ color: "var(--balboa-text-muted)" }}>threads</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontWeight: 700, color: "#2e7d32" }}>
+              {emailMetrics.matchedThreads}
+            </span>
+            <span style={{ color: "var(--balboa-text-muted)" }}>matched</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontWeight: 700, color: "#94a3b8" }}>
+              {emailMetrics.unmatchedThreads}
+            </span>
+            <span style={{ color: "var(--balboa-text-muted)" }}>unmatched</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontWeight: 700, color: "var(--balboa-blue)" }}>
+              {emailMetrics.responseRate}%
+            </span>
+            <span style={{ color: "var(--balboa-text-muted)" }}>response rate</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontWeight: 700, color: "var(--balboa-navy)" }}>
+              {emailMetrics.sent}
+            </span>
+            <span style={{ color: "var(--balboa-text-muted)" }}>sent</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontWeight: 700, color: "var(--balboa-navy)" }}>
+              {emailMetrics.received}
+            </span>
+            <span style={{ color: "var(--balboa-text-muted)" }}>received</span>
+          </div>
+        </div>
+      )}
 
       {/* Main content: two-panel layout */}
       <div
