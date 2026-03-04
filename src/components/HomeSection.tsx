@@ -1,10 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import {
-  ChevronRight, Sparkles, Send, Clock,
-  MessageSquare, Copy, Check,
-} from "lucide-react";
+import { ChevronRight, MessageSquare } from "lucide-react";
 import type { Lead, Deal, SupportedLanguage, SalesEvent } from "@/lib/types";
 import SectionTabBar from "./SectionTabBar";
 import OutreachCommandCenter from "./OutreachCommandCenter";
@@ -154,27 +151,28 @@ function WorkflowSection({
 function ReplyCard({
   lead,
   onNavigate,
-  onGenerate,
-  onCopy,
-  generatingForLeadId,
 }: {
   lead: Lead;
   onNavigate: (id: string) => void;
-  onGenerate: (lead: Lead, type: string) => void;
-  onCopy: (text: string) => void;
-  generatingForLeadId: string | null;
 }) {
   const initials = `${lead.firstName?.[0] || ""}${lead.lastName?.[0] || ""}`.toUpperCase();
   const draft = lead.draftMessages.find((d) => d.status === "draft");
-  const isGenerating = generatingForLeadId === lead.id;
 
   return (
-    <div style={{
-      padding: "14px 16px",
-      borderBottom: "1px solid rgba(148,163,184,0.08)",
-      display: "flex",
-      gap: 12,
-    }}>
+    <div
+      style={{
+        padding: "12px 16px",
+        borderBottom: "1px solid rgba(148,163,184,0.08)",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        cursor: "pointer",
+        transition: "background 0.1s ease",
+      }}
+      onClick={() => onNavigate(lead.id)}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(5,150,105,0.03)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+    >
       {/* Avatar */}
       <div style={{
         width: 36,
@@ -192,118 +190,55 @@ function ReplyCard({
         {initials}
       </div>
 
-      {/* Content */}
+      {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Name + company */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-          <span
-            style={{ fontSize: 13, fontWeight: 700, color: "var(--balboa-navy)", cursor: "pointer" }}
-            onClick={() => onNavigate(lead.id)}
-          >
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--balboa-navy)" }}>
             {lead.firstName} {lead.lastName}
           </span>
           <span style={{ fontSize: 11, color: "var(--balboa-text-muted)" }}>
             {lead.company}
           </span>
         </div>
-
-        {/* What they did — the reason this is here */}
-        <div style={{
-          fontSize: 12,
-          color: "#059669",
-          fontWeight: 600,
-          marginBottom: 6,
-        }}>
-          {lead.nextStep || "Replied positively — respond to keep momentum"}
+        <div style={{ fontSize: 12, color: "#059669", fontWeight: 600 }}>
+          → {lead.nextStep || "Replied positively — respond to keep momentum"}
         </div>
-
-        {/* Draft preview if available */}
         {draft && (
           <div style={{
-            padding: "8px 10px",
-            background: "rgba(5,150,105,0.05)",
-            borderRadius: 6,
-            border: "1px solid rgba(5,150,105,0.12)",
-            marginBottom: 8,
+            fontSize: 11,
+            color: "var(--balboa-text-muted)",
+            marginTop: 2,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: "#059669", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.03em" }}>
-              Draft ready
-            </div>
-            <div style={{
-              fontSize: 12,
-              color: "var(--balboa-text)",
-              lineHeight: 1.4,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}>
-              {draft.body.slice(0, 120)}{draft.body.length > 120 ? "..." : ""}
-            </div>
-            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-              <button
-                onClick={() => onCopy(draft.body)}
-                style={{
-                  padding: "4px 10px",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  background: "#059669",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 5,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                <Copy size={10} />
-                Copy & Send
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Action buttons */}
-        {!draft && (
-          <div style={{ display: "flex", gap: 6 }}>
-            <button
-              onClick={() => onGenerate(lead, "follow_up")}
-              disabled={isGenerating}
-              style={{
-                padding: "5px 12px",
-                fontSize: 11,
-                fontWeight: 600,
-                background: "rgba(5,150,105,0.08)",
-                color: "#059669",
-                border: "1px solid rgba(5,150,105,0.15)",
-                borderRadius: 6,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <Sparkles size={11} />
-              {isGenerating ? "Generating..." : "Draft Response"}
-            </button>
-            <button
-              onClick={() => onNavigate(lead.id)}
-              style={{
-                padding: "5px 12px",
-                fontSize: 11,
-                fontWeight: 600,
-                background: "transparent",
-                color: "var(--balboa-text-muted)",
-                border: "1px solid var(--balboa-border-light)",
-                borderRadius: 6,
-                cursor: "pointer",
-              }}
-            >
-              View Lead
-            </button>
+            📝 Draft ready: {draft.body.slice(0, 80)}...
           </div>
         )}
       </div>
+
+      {/* Respond button */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onNavigate(lead.id); }}
+        style={{
+          padding: "7px 14px",
+          fontSize: 12,
+          fontWeight: 700,
+          background: "#059669",
+          color: "white",
+          border: "none",
+          borderRadius: 6,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          flexShrink: 0,
+          whiteSpace: "nowrap",
+        }}
+      >
+        <MessageSquare size={12} />
+        Respond
+      </button>
     </div>
   );
 }
@@ -314,17 +249,12 @@ function FollowUpCard({
   lead,
   daysOverdue,
   onNavigate,
-  onGenerate,
-  generatingForLeadId,
 }: {
   lead: Lead;
   daysOverdue: number;
   onNavigate: (id: string) => void;
-  onGenerate: (lead: Lead, type: string) => void;
-  generatingForLeadId: string | null;
 }) {
   const initials = `${lead.firstName?.[0] || ""}${lead.lastName?.[0] || ""}`.toUpperCase();
-  const isGenerating = generatingForLeadId === lead.id;
 
   const urgencyLabel = daysOverdue > 0
     ? `${daysOverdue}d overdue`
@@ -338,13 +268,20 @@ function FollowUpCard({
     || "Send follow-up message";
 
   return (
-    <div style={{
-      padding: "12px 16px",
-      borderBottom: "1px solid rgba(148,163,184,0.08)",
-      display: "flex",
-      alignItems: "center",
-      gap: 12,
-    }}>
+    <div
+      style={{
+        padding: "12px 16px",
+        borderBottom: "1px solid rgba(148,163,184,0.08)",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        cursor: "pointer",
+        transition: "background 0.1s ease",
+      }}
+      onClick={() => onNavigate(lead.id)}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(220,38,38,0.03)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+    >
       {/* Avatar */}
       <div style={{
         width: 34,
@@ -365,10 +302,7 @@ function FollowUpCard({
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{ fontSize: 13, fontWeight: 600, color: "var(--balboa-navy)", cursor: "pointer" }}
-            onClick={() => onNavigate(lead.id)}
-          >
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--balboa-navy)" }}>
             {lead.firstName} {lead.lastName}
           </span>
           <span style={{ fontSize: 11, color: "var(--balboa-text-muted)" }}>
@@ -391,53 +325,33 @@ function FollowUpCard({
           fontSize: 12,
           color: "var(--balboa-text-muted)",
           marginTop: 2,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
         }}>
           <span style={{ color: "var(--balboa-blue)", fontWeight: 500 }}>→ {action}</span>
         </div>
       </div>
 
-      {/* Quick actions */}
-      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-        <button
-          onClick={() => onGenerate(lead, "follow_up")}
-          disabled={isGenerating}
-          title="Generate follow-up"
-          style={{
-            padding: "6px 10px",
-            fontSize: 11,
-            fontWeight: 600,
-            background: "rgba(37,99,235,0.06)",
-            color: "var(--balboa-blue)",
-            border: "1px solid rgba(37,99,235,0.12)",
-            borderRadius: 6,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          {isGenerating ? <Clock size={11} /> : <Send size={11} />}
-          {isGenerating ? "..." : "Draft"}
-        </button>
-        <button
-          onClick={() => onNavigate(lead.id)}
-          title="View lead"
-          style={{
-            padding: "6px",
-            background: "transparent",
-            border: "1px solid var(--balboa-border-light)",
-            borderRadius: 6,
-            cursor: "pointer",
-            display: "flex",
-            color: "var(--balboa-text-muted)",
-          }}
-        >
-          <ChevronRight size={13} />
-        </button>
-      </div>
+      {/* Open button */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onNavigate(lead.id); }}
+        style={{
+          padding: "7px 14px",
+          fontSize: 12,
+          fontWeight: 700,
+          background: "rgba(37,99,235,0.08)",
+          color: "var(--balboa-blue)",
+          border: "1px solid rgba(37,99,235,0.12)",
+          borderRadius: 6,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          flexShrink: 0,
+          whiteSpace: "nowrap",
+        }}
+      >
+        <ChevronRight size={12} />
+        Open
+      </button>
     </div>
   );
 }
@@ -572,9 +486,6 @@ export default function HomeSection({
                 key={lead.id}
                 lead={lead}
                 onNavigate={onNavigateToLead}
-                onGenerate={onGenerateMessage}
-                onCopy={onCopyMessage}
-                generatingForLeadId={generatingForLeadId}
               />
             ))}
           </WorkflowSection>
@@ -596,8 +507,6 @@ export default function HomeSection({
                 lead={lead}
                 daysOverdue={daysOverdue}
                 onNavigate={onNavigateToLead}
-                onGenerate={onGenerateMessage}
-                generatingForLeadId={generatingForLeadId}
               />
             ))}
           </WorkflowSection>
@@ -619,6 +528,7 @@ export default function HomeSection({
                 onGenerateMessage={onGenerateMessage}
                 onCopyMessage={onCopyMessage}
                 generatingForLeadId={generatingForLeadId}
+                compact
               />
             </div>
           </WorkflowSection>

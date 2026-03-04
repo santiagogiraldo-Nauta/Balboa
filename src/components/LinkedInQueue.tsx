@@ -15,6 +15,7 @@ interface LinkedInQueueProps {
   onGenerateMessage?: (lead: Lead, type: string) => void;
   onCopyMessage?: (text: string) => void;
   generatingForLeadId?: string | null;
+  compact?: boolean;
 }
 
 // Stage configuration
@@ -84,7 +85,7 @@ function daysSinceLastLinkedInTouch(lead: Lead): number | null {
   return Math.floor((Date.now() - new Date(latest.date).getTime()) / 86400000);
 }
 
-export default function LinkedInQueue({ leads, onNavigateToLead, onUpdateLead, onGenerateMessage, onCopyMessage, generatingForLeadId }: LinkedInQueueProps) {
+export default function LinkedInQueue({ leads, onNavigateToLead, onUpdateLead, onGenerateMessage, onCopyMessage, generatingForLeadId, compact = false }: LinkedInQueueProps) {
   const [stageFilter, setStageFilter] = useState<LinkedInOutreachStage | "all">("all");
   const [tierFilter, setTierFilter] = useState<"all" | "hot" | "warm" | "cold">("all");
   const [showAll, setShowAll] = useState(false);
@@ -187,6 +188,219 @@ export default function LinkedInQueue({ leads, onNavigateToLead, onUpdateLead, o
     .filter(e => tierFilter === "all" || e.lead.icpScore?.tier === tierFilter)
     .length;
 
+  // ── Compact mode: tight rows with stage tabs ──
+  if (compact) {
+    const compactDisplayed = showAll ? actionable : actionable.slice(0, 7);
+    const compactHasMore = actionable.length > 7 && !showAll;
+
+    return (
+      <div>
+        {/* Stage tabs as compact filter bar */}
+        <div style={{
+          display: "flex",
+          gap: 2,
+          padding: "8px 12px",
+          borderBottom: "1px solid rgba(148,163,184,0.08)",
+          flexWrap: "wrap",
+        }}>
+          <button
+            onClick={() => setStageFilter("all")}
+            style={{
+              padding: "3px 10px",
+              fontSize: 11,
+              fontWeight: 600,
+              borderRadius: 12,
+              border: "none",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              ...(stageFilter === "all"
+                ? { background: "#0077b5", color: "white" }
+                : { background: "transparent", color: "var(--balboa-text-muted)" }
+              ),
+            }}
+          >
+            All {totalActionable}
+          </button>
+          {STAGE_ORDER.filter(s => s !== "meeting_booked" && stageCounts[s] > 0).map(s => (
+            <button
+              key={s}
+              onClick={() => setStageFilter(s)}
+              style={{
+                padding: "3px 10px",
+                fontSize: 11,
+                fontWeight: 600,
+                borderRadius: 12,
+                border: "none",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+                ...(stageFilter === s
+                  ? { background: STAGE_CONFIG[s].color, color: "white" }
+                  : { background: "transparent", color: STAGE_CONFIG[s].color }
+                ),
+              }}
+            >
+              {STAGE_CONFIG[s].shortLabel} {stageCounts[s]}
+            </button>
+          ))}
+        </div>
+
+        {/* Compact rows */}
+        {compactDisplayed.length === 0 ? (
+          <div style={{ padding: "16px", textAlign: "center", fontSize: 12, color: "var(--balboa-text-muted)" }}>
+            No leads in this stage
+          </div>
+        ) : (
+          compactDisplayed.map(({ lead, stage, daysSince }) => {
+            const config = STAGE_CONFIG[stage];
+            const nextStage = NEXT_STAGE[stage];
+            const isStalled = daysSince !== null && daysSince >= 3;
+
+            return (
+              <div
+                key={lead.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 12px",
+                  borderBottom: "1px solid rgba(148,163,184,0.06)",
+                  cursor: "pointer",
+                  transition: "background 0.1s ease",
+                }}
+                onClick={() => onNavigateToLead?.(lead.id)}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(0,119,181,0.03)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                {/* Stage dot */}
+                <div style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: config.color,
+                  flexShrink: 0,
+                }} />
+
+                {/* Name + company */}
+                <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--balboa-navy)", whiteSpace: "nowrap" }}>
+                    {lead.firstName} {lead.lastName}
+                  </span>
+                  <span style={{
+                    fontSize: 11,
+                    color: "var(--balboa-text-muted)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {lead.company}
+                  </span>
+                </div>
+
+                {/* Suggestion text */}
+                <span style={{
+                  fontSize: 10,
+                  color: "var(--balboa-text-secondary)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 160,
+                  flexShrink: 1,
+                }}>
+                  {config.suggestion}
+                </span>
+
+                {/* Stalled indicator */}
+                {isStalled && (
+                  <span style={{ fontSize: 10, color: "#d97706", fontWeight: 600, flexShrink: 0 }}>
+                    {daysSince}d
+                  </span>
+                )}
+
+                {/* Advance button */}
+                {nextStage && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleAdvance(lead); }}
+                    style={{
+                      padding: "3px 8px",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      background: config.bg,
+                      color: config.color,
+                      border: "none",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 2,
+                      flexShrink: 0,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {STAGE_CONFIG[nextStage].shortLabel} <ChevronRight className="w-2.5 h-2.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })
+        )}
+
+        {/* Show more / collapse */}
+        {compactHasMore && (
+          <button
+            onClick={() => setShowAll(true)}
+            style={{
+              width: "100%",
+              padding: "8px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#0077b5",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 4,
+            }}
+          >
+            Show all {actionable.length} <ChevronDown className="w-3 h-3" />
+          </button>
+        )}
+        {showAll && actionable.length > 7 && (
+          <button
+            onClick={() => setShowAll(false)}
+            style={{
+              width: "100%",
+              padding: "8px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--balboa-text-muted)",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              textAlign: "center",
+            }}
+          >
+            Collapse
+          </button>
+        )}
+
+        {/* Meeting booked count */}
+        {stageCounts.meeting_booked > 0 && (
+          <div style={{
+            padding: "6px 12px",
+            borderTop: "1px solid rgba(148,163,184,0.08)",
+            fontSize: 11, color: "#15803d", display: "flex", alignItems: "center", gap: 4,
+          }}>
+            <CalendarCheck className="w-3 h-3" />
+            <span style={{ fontWeight: 600 }}>{stageCounts.meeting_booked}</span> meeting{stageCounts.meeting_booked > 1 ? "s" : ""} booked
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Full mode (default) ──
   return (
     <div>
       {/* Header */}
