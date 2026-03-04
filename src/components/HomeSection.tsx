@@ -21,6 +21,7 @@ interface HomeSectionProps {
   onCopyMessage: (text: string) => void;
   generatingForLeadId: string | null;
   language: SupportedLanguage;
+  onAskVasco?: (prompt: string) => void;
 }
 
 // ── Helpers ──

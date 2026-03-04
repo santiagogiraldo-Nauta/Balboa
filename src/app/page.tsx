@@ -69,8 +69,9 @@ export default function Dashboard() {
   const [showLinkedInPopup, setShowLinkedInPopup] = useState(false);
   const [showProposalPopup, setShowProposalPopup] = useState(false);
   const [popupPrefill, setPopupPrefill] = useState<{ subject?: string; body?: string; draftId?: string } | null>(null);
-  // Phase 6 state
+  // Phase 6 state — Vasco
   const [vascoPrompt, setVascoPrompt] = useState<string | null>(null);
+  const [vascoOpen, setVascoOpen] = useState(false);
   const [showDeepResearch, setShowDeepResearch] = useState(false);
   const [events] = useState<SalesEvent[]>(mockEvents);
   const [communications] = useState<Record<string, CommunicationThread[]>>(mockCommunications);
@@ -105,6 +106,18 @@ export default function Dashboard() {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   })), [accounts]);
+
+  // ⌘K / Ctrl+K keyboard shortcut to toggle Vasco
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setVascoOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Load user + leads from Supabase on mount (with timeout guard)
   useEffect(() => {
@@ -965,6 +978,7 @@ export default function Dashboard() {
             onCopyMessage={copyToClipboard}
             generatingForLeadId={generatingForLeadId}
             language={contentLanguage}
+            onAskVasco={setVascoPrompt}
           />
         )}
 
@@ -1128,6 +1142,7 @@ export default function Dashboard() {
               leads={leads}
               selectedLead={selectedLead}
               onNavigateToLead={handleNavigateToLead}
+              onAskVasco={setVascoPrompt}
             />
           </div>
         )}
@@ -1138,6 +1153,7 @@ export default function Dashboard() {
             <InsightsSection
               deals={typedDeals}
               leads={leads}
+              onAskVasco={setVascoPrompt}
             />
           </div>
         )}
@@ -1313,6 +1329,8 @@ export default function Dashboard() {
         language={contentLanguage}
         externalPrompt={vascoPrompt}
         onExternalPromptHandled={() => setVascoPrompt(null)}
+        isOpen={vascoOpen}
+        onOpenChange={setVascoOpen}
       />
 
       {/* Toast Notification */}

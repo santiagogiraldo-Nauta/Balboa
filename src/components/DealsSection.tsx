@@ -18,6 +18,7 @@ interface DealsSectionProps {
   leads: Lead[];
   selectedLead: Lead | null;
   onNavigateToLead: (leadId: string) => void;
+  onAskVasco?: (prompt: string) => void;
 }
 
 const TABS = [
@@ -33,7 +34,9 @@ export default function DealsSection({
   leads,
   selectedLead,
   onNavigateToLead,
+  onAskVasco: _onAskVasco,
 }: DealsSectionProps) {
+  void _onAskVasco;
   const [activeTab, setActiveTab] = useState<DealsTab>("pipeline");
 
   return (

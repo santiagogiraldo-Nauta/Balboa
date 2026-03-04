@@ -26,6 +26,10 @@ interface BalboaAssistantProps {
   externalPrompt?: string | null;
   /** Callback to clear external prompt after handling */
   onExternalPromptHandled?: () => void;
+  /** Controlled open state (lifted to parent for keyboard shortcut) */
+  isOpen?: boolean;
+  /** Callback when open state changes */
+  onOpenChange?: (open: boolean) => void;
 }
 
 const SUGGESTED_PROMPTS = [
@@ -103,13 +107,22 @@ export default function BalboaAssistant({
   onGenerateMessage,
   externalPrompt,
   onExternalPromptHandled,
+  isOpen: controlledOpen,
+  onOpenChange,
 }: BalboaAssistantProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Support both controlled and uncontrolled open state
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setIsOpen = (open: boolean) => {
+    if (onOpenChange) onOpenChange(open);
+    else setInternalOpen(open);
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -307,41 +320,59 @@ export default function BalboaAssistant({
     <>
       {/* Vasco floating button */}
       {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          title="Ask Vasco"
+        <div
           style={{
             position: "fixed",
             bottom: 24,
             right: 24,
             zIndex: 1000,
-            width: 58,
-            height: 58,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #0f1a3e 0%, #1e2a5e 40%, #3b5bdb 100%)",
-            color: "white",
-            border: "2px solid rgba(255,255,255,0.12)",
-            cursor: "pointer",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
-            boxShadow:
-              "0 4px 24px rgba(15,26,62,0.45), 0 0 0 3px rgba(59,91,219,0.12), inset 0 1px 0 rgba(255,255,255,0.1)",
-            transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "scale(1.1) rotate(15deg)";
-            e.currentTarget.style.boxShadow =
-              "0 8px 32px rgba(15,26,62,0.5), 0 0 0 4px rgba(59,91,219,0.2), inset 0 1px 0 rgba(255,255,255,0.15)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "scale(1) rotate(0deg)";
-            e.currentTarget.style.boxShadow =
-              "0 4px 24px rgba(15,26,62,0.45), 0 0 0 3px rgba(59,91,219,0.12), inset 0 1px 0 rgba(255,255,255,0.1)";
+            gap: 6,
           }}
         >
-          <VascoLogo size={28} />
-        </button>
+          <button
+            onClick={() => setIsOpen(true)}
+            title="Ask Vasco (⌘K)"
+            style={{
+              width: 58,
+              height: 58,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, #151B42 0%, #1e2a5e 40%, #3B5BDB 100%)",
+              color: "white",
+              border: "2px solid rgba(255,255,255,0.12)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow:
+                "0 4px 24px rgba(21,27,66,0.45), 0 0 0 3px rgba(59,91,219,0.12), inset 0 1px 0 rgba(255,255,255,0.1)",
+              transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.1) rotate(15deg)";
+              e.currentTarget.style.boxShadow =
+                "0 8px 32px rgba(21,27,66,0.5), 0 0 0 4px rgba(59,91,219,0.2), inset 0 1px 0 rgba(255,255,255,0.15)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1) rotate(0deg)";
+              e.currentTarget.style.boxShadow =
+                "0 4px 24px rgba(21,27,66,0.45), 0 0 0 3px rgba(59,91,219,0.12), inset 0 1px 0 rgba(255,255,255,0.1)";
+            }}
+          >
+            <VascoLogo size={28} />
+          </button>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: "var(--balboa-text-muted)",
+            letterSpacing: "0.01em",
+            opacity: 0.7,
+          }}>
+            ⌘K
+          </span>
+        </div>
       )}
 
       {/* Chat panel */}
@@ -372,7 +403,7 @@ export default function BalboaAssistant({
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              background: "linear-gradient(135deg, #0f1a3e 0%, #1e2a5e 40%, #3b5bdb 100%)",
+              background: "linear-gradient(135deg, #151B42 0%, #1e2a5e 40%, #3B5BDB 100%)",
               borderRadius: "16px 16px 0 0",
               color: "white",
             }}
@@ -465,7 +496,7 @@ export default function BalboaAssistant({
                   width: 56,
                   height: 56,
                   borderRadius: 14,
-                  background: "linear-gradient(135deg, #0f1a3e 0%, #1e2a5e 40%, #3b5bdb 100%)",
+                  background: "linear-gradient(135deg, #151B42 0%, #1e2a5e 40%, #3B5BDB 100%)",
                   color: "white",
                   display: "flex",
                   alignItems: "center",

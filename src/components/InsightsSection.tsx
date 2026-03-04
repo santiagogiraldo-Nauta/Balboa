@@ -12,6 +12,7 @@ type InsightsTab = "playbook" | "winloss";
 interface InsightsSectionProps {
   deals: Deal[];
   leads: Lead[];
+  onAskVasco?: (prompt: string) => void;
 }
 
 const TABS = [
@@ -22,7 +23,9 @@ const TABS = [
 export default function InsightsSection({
   deals,
   leads,
+  onAskVasco: _onAskVasco,
 }: InsightsSectionProps) {
+  void _onAskVasco;
   const [activeTab, setActiveTab] = useState<InsightsTab>("playbook");
 
   return (
