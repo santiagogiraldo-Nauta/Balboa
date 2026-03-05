@@ -16,7 +16,7 @@ import { persistGmailThreads } from "@/lib/gmail/persist";
  *
  * Query params:
  *   pageToken  — Gmail pagination token (omit for first page)
- *   batchSize  — threads per page (default 100, max 500)
+ *   batchSize  — threads per page (default 50, max 500)
  *   query      — Gmail search query (default "newer_than:180d")
  */
 export async function GET(request: NextRequest) {
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const pageToken = searchParams.get("pageToken") || undefined;
     const batchSize = Math.min(
-      parseInt(searchParams.get("batchSize") || "100"),
+      parseInt(searchParams.get("batchSize") || "50"),
       500
     );
     const query = searchParams.get("query") || "newer_than:180d";
@@ -61,9 +61,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // ── 2. Fetch thread metadata in batches of 10 ────────────────
+    // ── 2. Fetch thread metadata in batches of 5 (rate-limit safe) ─
     const parsedThreads: ParsedGmailThread[] = [];
-    const detailBatchSize = 10;
+    const detailBatchSize = 5;
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
     for (let i = 0; i < listData.threads.length; i += detailBatchSize) {
       const batch = listData.threads.slice(i, i + detailBatchSize);
@@ -143,6 +144,11 @@ export async function GET(request: NextRequest) {
           lastMessageDate: lastMsg?.date || new Date().toISOString(),
           snippet: thread.snippet || "",
         });
+      }
+
+      // Rate-limit: small delay between batches to avoid quota exhaustion
+      if (i + detailBatchSize < listData.threads.length) {
+        await delay(200);
       }
     }
 
