@@ -1,0 +1,69 @@
+{
+  "name": "Balboa - Clay Enrichment Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "enrich-lead",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-trigger",
+      "name": "Enrich Lead Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "notes": "Call this from Balboa when a new lead needs enrichment"
+    },
+    {
+      "parameters": {
+        "url": "https://api.clay.com/v1/tables/YOUR_TABLE_ID/rows",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "data",
+              "value": "={{ JSON.stringify({ email: $json.email, linkedin_url: $json.linkedin_url, company: $json.company }) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "send-to-clay",
+      "name": "Send to Clay Table",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300],
+      "notes": "Replace YOUR_TABLE_ID with your Clay enrichment table ID. Set up HTTP Header Auth with your Clay API key."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ sent: true, email: $json.email }) }}"
+      },
+      "id": "respond",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "Enrich Lead Trigger": {
+      "main": [
+        [{ "node": "Send to Clay Table", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send to Clay Table": {
+      "main": [
+        [{ "node": "Respond OK", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

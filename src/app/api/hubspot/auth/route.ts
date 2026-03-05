@@ -17,7 +17,13 @@ export async function GET() {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://balboa-xi.vercel.app";
   const redirectUri = `${baseUrl}/api/hubspot/callback`;
 
-  const authUrl = getOAuthUrl(redirectUri, user.id);
-
-  return NextResponse.redirect(authUrl);
+  try {
+    const authUrl = getOAuthUrl(redirectUri, user.id);
+    return NextResponse.redirect(authUrl);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "HubSpot OAuth not configured" },
+      { status: 503 }
+    );
+  }
 }

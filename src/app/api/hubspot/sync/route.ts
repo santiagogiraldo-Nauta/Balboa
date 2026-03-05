@@ -77,35 +77,56 @@ export async function POST(req: NextRequest) {
     const syncType = body.syncType || "all";
 
     const results: Record<string, unknown> = {};
+    const errors: string[] = [];
 
     // Pull contacts from HubSpot
     if ((syncType === "all" || syncType === "contacts") && (direction === "pull" || direction === "both")) {
-      const contactsResult = await syncContacts(supabase, user.id, accessToken);
-      results.contacts = contactsResult;
+      try {
+        const contactsResult = await syncContacts(supabase, user.id, accessToken);
+        results.contacts = contactsResult;
+      } catch (e) {
+        console.error("[HubSpot Sync] Contacts sync failed:", e);
+        errors.push("contacts: " + (e instanceof Error ? e.message : String(e)));
+      }
     }
 
     // Pull deals from HubSpot
     if ((syncType === "all" || syncType === "deals") && (direction === "pull" || direction === "both")) {
-      const dealsResult = await syncDeals(supabase, user.id, accessToken);
-      results.deals = dealsResult;
+      try {
+        const dealsResult = await syncDeals(supabase, user.id, accessToken);
+        results.deals = dealsResult;
+      } catch (e) {
+        console.error("[HubSpot Sync] Deals sync failed:", e);
+        errors.push("deals: " + (e instanceof Error ? e.message : String(e)));
+      }
     }
 
     // Pull sequences from HubSpot
     if ((syncType === "all" || syncType === "sequences") && (direction === "pull" || direction === "both")) {
-      const seqResult = await syncSequences(supabase, user.id, accessToken);
-      results.sequences = seqResult;
+      try {
+        const seqResult = await syncSequences(supabase, user.id, accessToken);
+        results.sequences = seqResult;
+      } catch (e) {
+        console.error("[HubSpot Sync] Sequences sync failed:", e);
+        errors.push("sequences: " + (e instanceof Error ? e.message : String(e)));
+      }
     }
 
     // Push leads to HubSpot
     if ((syncType === "all" || syncType === "contacts") && (direction === "push" || direction === "both")) {
-      const pushResult = await pushLeadsToHubSpot(supabase, user.id, accessToken);
-      results.pushed = pushResult;
+      try {
+        const pushResult = await pushLeadsToHubSpot(supabase, user.id, accessToken);
+        results.pushed = pushResult;
+      } catch (e) {
+        console.error("[HubSpot Sync] Push failed:", e);
+        errors.push("push: " + (e instanceof Error ? e.message : String(e)));
+      }
     }
 
     // Update last sync time
     await updateIntegrationStatus(supabase, user.id, "hubspot", "connected", true);
 
-    return NextResponse.json({ success: true, results });
+    return NextResponse.json({ success: errors.length === 0, results, ...(errors.length > 0 ? { errors } : {}) });
   } catch (error) {
     console.error("[HubSpot Sync] Error:", error);
     return NextResponse.json(

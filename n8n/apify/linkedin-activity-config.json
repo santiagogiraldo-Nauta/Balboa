@@ -1,0 +1,27 @@
+{
+  "actorId": "apify/linkedin-post-scraper",
+  "description": "Monitors LinkedIn post engagement and activity for tracked leads",
+  "input": {
+    "startUrls": [],
+    "proxy": {
+      "useApifyProxy": true,
+      "apifyProxyGroups": ["RESIDENTIAL"]
+    },
+    "maxItems": 50,
+    "maxRequestRetries": 2,
+    "maxConcurrency": 3,
+    "scrapeComments": true
+  },
+  "webhookUrl": "YOUR_N8N_WEBHOOK_URL/webhook/linkedin-activity-results",
+  "scheduleNote": "Run every 2 hours to check for post engagement from tracked leads",
+  "outputFields": [
+    "postUrl",
+    "authorName",
+    "authorUrl",
+    "text",
+    "likes",
+    "comments",
+    "shares",
+    "timestamp"
+  ]
+}

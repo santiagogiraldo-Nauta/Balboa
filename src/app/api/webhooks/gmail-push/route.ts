@@ -4,10 +4,10 @@ import { processWebhookEvent, findLeadByEmail } from "@/lib/track-touchpoint";
 import { logWebhook } from "@/lib/db-touchpoints";
 
 function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
 }
 
 /**
@@ -31,6 +31,9 @@ function getServiceClient() {
  */
 export async function POST(req: NextRequest) {
   const supabase = getServiceClient();
+  if (!supabase) {
+    return NextResponse.json({ received: true, error: "Service not configured" });
+  }
 
   try {
     const payload = await req.json();
@@ -203,19 +206,28 @@ async function refreshGmailToken(tokenRow: Record<string, unknown>): Promise<str
     return accessToken;
   }
 
+  // Validate Google OAuth credentials
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error("Google OAuth credentials not configured");
+  }
+
   // Refresh the token
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      client_id: clientId,
+      client_secret: clientSecret,
       refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),
   });
 
   if (!response.ok) {
+    const errorBody = await response.text().catch(() => "unknown");
+    console.error("[Gmail Push] Token refresh failed:", errorBody);
     throw new Error("Failed to refresh Gmail token");
   }
 

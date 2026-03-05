@@ -1,0 +1,85 @@
+{
+  "name": "Balboa - Daily Actions Compute (Cron)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every Day at 6 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "notes": "Triggers daily at 6 AM to compute action recommendations"
+    },
+    {
+      "parameters": {
+        "url": "https://balboa-xi.vercel.app/api/daily-actions",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "action",
+              "value": "compute"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "compute-actions",
+      "name": "Compute Daily Actions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://balboa-xi.vercel.app/api/hubspot/sync",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "direction",
+              "value": "pull"
+            },
+            {
+              "name": "syncType",
+              "value": "all"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "hubspot-sync",
+      "name": "HubSpot Morning Sync",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 500],
+      "notes": "Optional: sync HubSpot data each morning"
+    }
+  ],
+  "connections": {
+    "Every Day at 6 AM": {
+      "main": [
+        [
+          { "node": "Compute Daily Actions", "type": "main", "index": 0 },
+          { "node": "HubSpot Morning Sync", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

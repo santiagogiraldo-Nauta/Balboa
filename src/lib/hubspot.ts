@@ -19,13 +19,19 @@ interface HubSpotTokens {
 }
 
 export async function refreshHubSpotToken(refreshToken: string): Promise<HubSpotTokens> {
+  const clientId = process.env.HUBSPOT_CLIENT_ID;
+  const clientSecret = process.env.HUBSPOT_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error("HubSpot OAuth credentials not configured (HUBSPOT_CLIENT_ID, HUBSPOT_CLIENT_SECRET)");
+  }
+
   const response = await fetch("https://api.hubapi.com/oauth/v1/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "refresh_token",
-      client_id: process.env.HUBSPOT_CLIENT_ID!,
-      client_secret: process.env.HUBSPOT_CLIENT_SECRET!,
+      client_id: clientId,
+      client_secret: clientSecret,
       refresh_token: refreshToken,
     }),
   });
@@ -340,8 +346,13 @@ export async function createCustomProperty(
 // ─── Webhook Subscription ────────────────────────────────────────
 
 export function getOAuthUrl(redirectUri: string, state: string): string {
+  const clientId = process.env.HUBSPOT_CLIENT_ID;
+  if (!clientId) {
+    throw new Error("HubSpot OAuth not configured (HUBSPOT_CLIENT_ID missing)");
+  }
+
   const params = new URLSearchParams({
-    client_id: process.env.HUBSPOT_CLIENT_ID!,
+    client_id: clientId,
     redirect_uri: redirectUri,
     scope: "crm.objects.contacts.read crm.objects.contacts.write crm.objects.deals.read crm.objects.deals.write automation",
     state,
@@ -351,13 +362,19 @@ export function getOAuthUrl(redirectUri: string, state: string): string {
 }
 
 export async function exchangeCode(code: string, redirectUri: string): Promise<HubSpotTokens> {
+  const clientId = process.env.HUBSPOT_CLIENT_ID;
+  const clientSecret = process.env.HUBSPOT_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error("HubSpot OAuth credentials not configured");
+  }
+
   const response = await fetch("https://api.hubapi.com/oauth/v1/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
-      client_id: process.env.HUBSPOT_CLIENT_ID!,
-      client_secret: process.env.HUBSPOT_CLIENT_SECRET!,
+      client_id: clientId,
+      client_secret: clientSecret,
       redirect_uri: redirectUri,
       code,
     }),

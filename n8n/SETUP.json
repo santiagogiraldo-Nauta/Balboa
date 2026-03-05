@@ -1,0 +1,113 @@
+{
+  "balboa_integration_setup": {
+    "version": "1.0",
+    "description": "Balboa platform integration endpoints and configuration",
+
+    "webhook_endpoints": {
+      "amplemarket": {
+        "url": "https://balboa-xi.vercel.app/api/webhooks/amplemarket",
+        "method": "POST",
+        "events": ["reply", "email_reply", "stage_change", "sequence_step", "bounce", "email_bounce", "email_sent", "call_completed"],
+        "auth": "none (webhook)",
+        "setup": "In Amplemarket Settings > Webhooks, add this URL"
+      },
+      "hubspot": {
+        "url": "https://balboa-xi.vercel.app/api/webhooks/hubspot",
+        "method": "POST",
+        "events": ["contact.propertyChange", "deal.propertyChange", "email.open", "email.click", "email.reply", "email.bounce", "email.sent"],
+        "auth": "none (webhook)",
+        "setup": "In HubSpot Settings > Integrations > Webhooks, configure subscription"
+      },
+      "aircall": {
+        "url": "https://balboa-xi.vercel.app/api/webhooks/aircall",
+        "method": "POST",
+        "events": ["call.created", "call.answered", "call.ended", "call.hungup", "call.commented", "call.tagged"],
+        "auth": "none (webhook)",
+        "setup": "In Aircall Dashboard > Integrations > Webhooks, add this URL"
+      },
+      "clay": {
+        "url": "https://balboa-xi.vercel.app/api/webhooks/clay",
+        "method": "POST",
+        "events": ["enrichment"],
+        "auth": "none (webhook)",
+        "setup": "In Clay Table > HTTP API action, set this as the webhook URL"
+      },
+      "gmail_push": {
+        "url": "https://balboa-xi.vercel.app/api/webhooks/gmail-push",
+        "method": "POST",
+        "events": ["new_message"],
+        "auth": "Google Cloud Pub/Sub",
+        "setup": "Configure Google Cloud Pub/Sub push subscription pointing to this URL"
+      },
+      "linkedin_track": {
+        "url": "https://balboa-xi.vercel.app/api/linkedin/track",
+        "method": "POST",
+        "events": ["connection_accepted", "message_reply", "profile_view", "post_engagement", "connection_sent", "message_sent"],
+        "auth": "none",
+        "setup": "Called by n8n workflow after Apify scraper completes"
+      }
+    },
+
+    "oauth_flows": {
+      "hubspot": {
+        "auth_url": "https://balboa-xi.vercel.app/api/hubspot/auth",
+        "callback_url": "https://balboa-xi.vercel.app/api/hubspot/callback",
+        "required_env": ["HUBSPOT_CLIENT_ID", "HUBSPOT_CLIENT_SECRET"],
+        "setup": "1. Create app at developers.hubspot.com 2. Add redirect URI: https://balboa-xi.vercel.app/api/hubspot/callback 3. Set HUBSPOT_CLIENT_ID and HUBSPOT_CLIENT_SECRET in .env.local and Vercel"
+      },
+      "gmail": {
+        "auth_url": "https://balboa-xi.vercel.app/api/gmail/auth",
+        "callback_url": "https://balboa-xi.vercel.app/api/gmail/callback",
+        "status": "configured",
+        "required_env": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
+      }
+    },
+
+    "sync_endpoints": {
+      "hubspot_sync": {
+        "url": "https://balboa-xi.vercel.app/api/hubspot/sync",
+        "method": "POST",
+        "body": { "direction": "both", "syncType": "all" },
+        "auth": "user session (cookie)",
+        "schedule": "Every 2 hours via n8n"
+      },
+      "daily_actions_compute": {
+        "url": "https://balboa-xi.vercel.app/api/daily-actions/compute",
+        "method": "POST",
+        "body": { "secret": "SUPABASE_SERVICE_ROLE_KEY" },
+        "auth": "service role key",
+        "schedule": "Daily at 6 AM via n8n"
+      }
+    },
+
+    "n8n_workflows": {
+      "01": "Amplemarket webhook relay",
+      "02": "HubSpot webhook relay",
+      "03": "Aircall webhook relay",
+      "04": "LinkedIn Apify scraper (every 30 min)",
+      "05": "Daily actions compute (6 AM cron)",
+      "06": "Clay enrichment trigger",
+      "07": "HubSpot bi-directional sync (every 2 hours)"
+    },
+
+    "env_vars_needed": {
+      "already_configured": [
+        "ANTHROPIC_API_KEY",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "AMPLEMARKET_API_KEY",
+        "FIREFLIES_API_KEY"
+      ],
+      "needs_setup": [
+        "HUBSPOT_CLIENT_ID - Create app at developers.hubspot.com",
+        "HUBSPOT_CLIENT_SECRET - From HubSpot developer app",
+        "APIFY_API_TOKEN - From apify.com account settings",
+        "AIRCALL_API_KEY - From Aircall dashboard",
+        "N8N_WEBHOOK_BASE_URL - Your n8n instance URL"
+      ]
+    }
+  }
+}

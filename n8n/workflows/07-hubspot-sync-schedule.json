@@ -1,0 +1,59 @@
+{
+  "name": "Balboa - HubSpot Bi-directional Sync (Every 2 Hours)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 2 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://balboa-xi.vercel.app/api/hubspot/sync",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "direction",
+              "value": "both"
+            },
+            {
+              "name": "syncType",
+              "value": "all"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "hubspot-sync",
+      "name": "Sync HubSpot Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300],
+      "notes": "This requires HubSpot OAuth to be configured. User must be authenticated via cookie/session for this to work. Consider using service role auth instead for cron jobs."
+    }
+  ],
+  "connections": {
+    "Every 2 Hours": {
+      "main": [
+        [{ "node": "Sync HubSpot Data", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

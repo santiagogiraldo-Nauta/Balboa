@@ -1,0 +1,116 @@
+{
+  "name": "Balboa - LinkedIn Activity Scraper (Apify + Track)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 30 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.apify.com/v2/acts/apify~linkedin-profile-scraper/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "startUrls",
+              "value": "={{ $json.linkedin_urls || [] }}"
+            },
+            {
+              "name": "proxy",
+              "value": "={{ { useApifyProxy: true } }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "apify-run",
+      "name": "Run Apify LinkedIn Scraper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300],
+      "notes": "Replace with your Apify Actor ID. Use linkedin-profile-scraper or linkedin-activity-scraper."
+    },
+    {
+      "parameters": {
+        "url": "https://api.apify.com/v2/acts/apify~linkedin-profile-scraper/runs/last/dataset/items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "get-results",
+      "name": "Get Scraper Results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform Apify results into Balboa activity format\nconst items = $input.all();\nconst activities = [];\n\nfor (const item of items) {\n  const data = item.json;\n  \n  // Connection requests\n  if (data.connectionStatus === 'connected') {\n    activities.push({\n      type: 'connection_accepted',\n      linkedin_url: data.url || data.linkedinUrl,\n      name: `${data.firstName || ''} ${data.lastName || ''}`.trim(),\n      company: data.company || data.companyName,\n      timestamp: new Date().toISOString(),\n    });\n  }\n  \n  // Profile views (if available)\n  if (data.profileViews) {\n    for (const view of data.profileViews) {\n      activities.push({\n        type: 'profile_view',\n        linkedin_url: view.url,\n        name: view.name,\n        company: view.company,\n        timestamp: view.timestamp || new Date().toISOString(),\n      });\n    }\n  }\n}\n\nreturn [{ json: { activities } }];"
+      },
+      "id": "transform",
+      "name": "Transform to Balboa Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://balboa-xi.vercel.app/api/linkedin/track",
+        "sendBody": true,
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "send-to-balboa",
+      "name": "Send to Balboa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Every 30 Minutes": {
+      "main": [
+        [{ "node": "Run Apify LinkedIn Scraper", "type": "main", "index": 0 }]
+      ]
+    },
+    "Run Apify LinkedIn Scraper": {
+      "main": [
+        [{ "node": "Get Scraper Results", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Scraper Results": {
+      "main": [
+        [{ "node": "Transform to Balboa Format", "type": "main", "index": 0 }]
+      ]
+    },
+    "Transform to Balboa Format": {
+      "main": [
+        [{ "node": "Send to Balboa", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

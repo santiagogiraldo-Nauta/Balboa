@@ -1,0 +1,33 @@
+{
+  "actorId": "apify/linkedin-profile-scraper",
+  "description": "Scrapes LinkedIn profile data for lead enrichment and activity tracking",
+  "input": {
+    "startUrls": [],
+    "proxy": {
+      "useApifyProxy": true,
+      "apifyProxyGroups": ["RESIDENTIAL"]
+    },
+    "maxRequestRetries": 3,
+    "maxConcurrency": 5,
+    "extendOutputFunction": "async ({ page, request, $ }) => { return { connectionStatus: await page.$eval('.pvs-profile-actions .pvs-profile-actions__action:first-child button span', el => el.textContent?.trim()).catch(() => null) }; }",
+    "scrapeCompanyData": true,
+    "scrapeSkills": false,
+    "scrapeExperience": true,
+    "scrapeEducation": false
+  },
+  "webhookUrl": "YOUR_N8N_WEBHOOK_URL/webhook/linkedin-scrape-results",
+  "scheduleNote": "Configure in n8n to run every 30 minutes with leads that need LinkedIn tracking",
+  "outputFields": [
+    "url",
+    "firstName",
+    "lastName",
+    "headline",
+    "company",
+    "companyName",
+    "location",
+    "connectionStatus",
+    "connectionsCount",
+    "experience",
+    "profilePicture"
+  ]
+}

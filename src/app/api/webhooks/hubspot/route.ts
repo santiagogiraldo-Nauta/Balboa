@@ -4,10 +4,10 @@ import { processWebhookEvent, findLeadByEmail } from "@/lib/track-touchpoint";
 import { logWebhook } from "@/lib/db-touchpoints";
 
 function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
 }
 
 /**
@@ -22,6 +22,9 @@ function getServiceClient() {
  */
 export async function POST(req: NextRequest) {
   const supabase = getServiceClient();
+  if (!supabase) {
+    return NextResponse.json({ received: true, error: "Service not configured" });
+  }
 
   try {
     const payload = await req.json();
