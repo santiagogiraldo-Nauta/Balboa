@@ -25,6 +25,14 @@ const SERVICE_DOMAINS = [
   "mailchimp.com",
   "sendgrid.net",
   "postmarkapp.com",
+  "aircall.io",
+  "anthropic.com",
+  "claude.ai",
+  "readassistant.com",
+  "grammarly.com",
+  "otter.ai",
+  "krisp.ai",
+  "superhuman.com",
 ];
 
 const SERVICE_EMAIL_PREFIXES = [
@@ -52,11 +60,36 @@ const SERVICE_EMAIL_PREFIXES = [
   "digest@",
   "newsletter@",
   "feedback@",
+  "fred@",
+];
+
+// Name-based patterns for service leads that might use generic email domains
+const SERVICE_NAME_PATTERNS = [
+  /^mail delivery/i,
+  /^mailer.daemon/i,
+  /^postmaster$/i,
+  /^fred from fireflies/i,
+  /^fireflies/i,
+  /^aircall team/i,
+  /^aircall$/i,
+  /^claude team/i,
+  /^read assistant/i,
+  /^zoom$/i,
+  /^zoom team/i,
+  /^calendly$/i,
+  /^slack$/i,
+  /^notion$/i,
+  /^grammarly$/i,
+  /^otter\.ai/i,
+  /^loom$/i,
+  /^superhuman$/i,
+  /^krisp$/i,
+  /^anthropic$/i,
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function isServiceLead(email: string): boolean {
+function isServiceLead(email: string, firstName?: string, lastName?: string): boolean {
   const lower = email.toLowerCase().trim();
 
   // Check domain matches
@@ -84,12 +117,25 @@ function isServiceLead(email: string): boolean {
     }
   }
 
+  // Check name-based patterns (for leads imported from contacts with generic email domains)
+  const fullName = `${firstName || ""} ${lastName || ""}`.trim();
+  if (fullName) {
+    for (const pattern of SERVICE_NAME_PATTERNS) {
+      if (pattern.test(fullName)) {
+        return true;
+      }
+    }
+  }
+
   return false;
 }
 
 function looksLikeEmail(name: string): boolean {
   if (!name) return false;
-  return name.includes("@") || /^[a-z0-9._+-]+$/i.test(name);
+  // Must contain @ to be an email, or must contain dots/underscores
+  // that look like email local parts (e.g. "john.doe", "john_doe")
+  // Simple alpha-only names like "Rodrigo" are NOT emails
+  return name.includes("@") || /^[a-z0-9]+[._+-][a-z0-9._+-]+$/i.test(name);
 }
 
 function extractNameFromEmailLocal(email: string): {
@@ -175,7 +221,7 @@ export async function POST() {
       const company = (lead.company as string) || "";
 
       // 1. Check if this is a service/automated lead to delete
-      if (email && isServiceLead(email)) {
+      if (isServiceLead(email || "", firstName, lastName)) {
         toDelete.push(lead.id as string);
         continue; // No need to fix names on leads we are deleting
       }
