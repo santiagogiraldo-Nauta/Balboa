@@ -160,7 +160,48 @@ export default function Dashboard() {
         try {
           const dbLeads = await getLeads(supabase, user.id);
           if (!didTimeout && dbLeads.length > 0) {
-            setLeads(dbLeads);
+            // Enrich leads with touchpoint_events from DB
+            try {
+              const { data: tpEvents } = await supabase
+                .from("touchpoint_events")
+                .select("*")
+                .eq("user_id", user.id)
+                .order("created_at", { ascending: false });
+              if (tpEvents && tpEvents.length > 0) {
+                const eventsByLead: Record<string, typeof tpEvents> = {};
+                for (const ev of tpEvents) {
+                  if (ev.lead_id) {
+                    if (!eventsByLead[ev.lead_id]) eventsByLead[ev.lead_id] = [];
+                    eventsByLead[ev.lead_id].push(ev);
+                  }
+                }
+                // Merge touchpoint_events into lead timelines
+                const enriched = dbLeads.map(lead => {
+                  const dbEvents = eventsByLead[lead.id] || [];
+                  const mapped = dbEvents.map(ev => ({
+                    id: ev.id,
+                    channel: ev.channel || "email",
+                    type: ev.event_type || "email_sent",
+                    description: ev.subject || ev.body_preview || ev.event_type || "",
+                    date: ev.created_at,
+                  }));
+                  // Merge with existing contact_history (dedup by id)
+                  const existingIds = new Set((lead.touchpointTimeline || []).map(t => t.id));
+                  const newEvents = mapped.filter(m => !existingIds.has(m.id));
+                  return {
+                    ...lead,
+                    touchpointTimeline: [...(lead.touchpointTimeline || []), ...newEvents]
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+                  };
+                });
+                setLeads(enriched);
+              } else {
+                setLeads(dbLeads);
+              }
+            } catch (tpErr) {
+              console.error("Failed to load touchpoint_events:", tpErr);
+              setLeads(dbLeads);
+            }
           }
         } catch (dbErr) {
           console.error("Failed to load leads from DB:", dbErr);
@@ -326,6 +367,56 @@ export default function Dashboard() {
 
     autoImportContacts();
   }, [isSandbox, gmailSyncDone, gmailConnected, leads.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Amplemarket sync — pull calls and contacts silently (10-min cooldown)
+  useEffect(() => {
+    if (isSandbox || !dbReady) return;
+    const LS_KEY = "balboa_amp_last_sync";
+    const COOLDOWN = 10 * 60 * 1000;
+    const last = parseInt(localStorage.getItem(LS_KEY) || "0", 10);
+    if (Date.now() - last < COOLDOWN) return;
+
+    async function syncAmplemarket() {
+      try {
+        const res = await fetch("/api/amplemarket/calls");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.calls && data.calls.length > 0) {
+            console.log(`[Balboa] Amplemarket: ${data.calls.length} calls loaded`);
+          }
+        }
+        localStorage.setItem(LS_KEY, String(Date.now()));
+      } catch (err) {
+        console.error("[Balboa] Amplemarket sync failed:", err);
+      }
+    }
+    syncAmplemarket();
+  }, [isSandbox, dbReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fireflies sync — pull meeting transcripts silently (10-min cooldown)
+  useEffect(() => {
+    if (isSandbox || !dbReady) return;
+    const LS_KEY = "balboa_ff_last_sync";
+    const COOLDOWN = 10 * 60 * 1000;
+    const last = parseInt(localStorage.getItem(LS_KEY) || "0", 10);
+    if (Date.now() - last < COOLDOWN) return;
+
+    async function syncFireflies() {
+      try {
+        const res = await fetch("/api/fireflies/sync", { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.synced > 0) {
+            console.log(`[Balboa] Fireflies: ${data.synced} meetings synced`);
+          }
+        }
+        localStorage.setItem(LS_KEY, String(Date.now()));
+      } catch (err) {
+        console.error("[Balboa] Fireflies sync failed:", err);
+      }
+    }
+    syncFireflies();
+  }, [isSandbox, dbReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle URL params from Gmail OAuth callback redirect
   useEffect(() => {
