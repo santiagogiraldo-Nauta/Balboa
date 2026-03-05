@@ -382,7 +382,15 @@ export default function Dashboard() {
         if (res.ok) {
           const data = await res.json();
           if (data.calls && data.calls.length > 0) {
-            console.log(`[Balboa] Amplemarket: ${data.calls.length} calls loaded`);
+            console.log(`[Balboa] Amplemarket: ${data.calls.length} calls loaded, ${data.leadsUpdated || 0} leads updated`);
+            setToastMessage(`Amplemarket synced: ${data.calls.length} calls`);
+            setTimeout(() => setToastMessage(null), 3000);
+            // Refresh leads to pick up new call data from raw_data
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              const refreshed = await getLeads(supabase, user.id);
+              if (refreshed.length > 0) setLeads(refreshed);
+            }
           }
         }
         localStorage.setItem(LS_KEY, String(Date.now()));
@@ -407,7 +415,15 @@ export default function Dashboard() {
         if (res.ok) {
           const data = await res.json();
           if (data.synced > 0) {
-            console.log(`[Balboa] Fireflies: ${data.synced} meetings synced`);
+            console.log(`[Balboa] Fireflies: ${data.synced} meetings synced, ${data.matched || 0} matched to leads`);
+            setToastMessage(`Fireflies synced: ${data.synced} meetings`);
+            setTimeout(() => setToastMessage(null), 3000);
+            // Refresh leads to pick up new meeting data from raw_data
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              const refreshed = await getLeads(supabase, user.id);
+              if (refreshed.length > 0) setLeads(refreshed);
+            }
           }
         }
         localStorage.setItem(LS_KEY, String(Date.now()));
@@ -1428,6 +1444,15 @@ export default function Dashboard() {
               selectedLead={selectedLead}
               onNavigateToLead={handleNavigateToLead}
               onAskVasco={setVascoPrompt}
+              onDealStageChange={(dealId, newStage) => {
+                setDeals(prev => prev.map(d => d.id === dealId ? { ...d, deal_stage: newStage } : d));
+                // Persist to DB
+                fetch("/api/deals", {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ dealId, updates: { deal_stage: newStage } }),
+                }).catch(err => console.error("Failed to update deal stage:", err));
+              }}
             />
           </div>
         )}

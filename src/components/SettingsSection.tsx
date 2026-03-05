@@ -221,6 +221,18 @@ export default function SettingsSection({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ direction: "pull", syncType: "all" }),
         });
+      } else if (platform === "amplemarket") {
+        const res = await fetch("/api/amplemarket/calls");
+        if (res.ok) {
+          const data = await res.json();
+          console.log(`[Balboa] Manual Amplemarket sync: ${data.calls?.length || 0} calls, ${data.leadsUpdated || 0} leads updated`);
+        }
+      } else if (platform === "fireflies") {
+        const res = await fetch("/api/fireflies/sync", { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          console.log(`[Balboa] Manual Fireflies sync: ${data.synced || 0} meetings synced`);
+        }
       }
       await fetchAllStatuses(true);
     } catch (err) {
@@ -421,6 +433,7 @@ export default function SettingsSection({
             webhookUrl={webhookUrl("/api/webhooks/amplemarket")}
             onApiKeySubmit={(key) => handleApiKeySubmit("amplemarket", key)}
             onDisconnect={() => handleDisconnect("amplemarket")}
+            onSync={() => handleSync("amplemarket")}
             onTest={() => handleTest("amplemarket")}
           />
 
@@ -494,6 +507,7 @@ export default function SettingsSection({
             testing={testingPlatform === "fireflies"}
             onApiKeySubmit={(key) => handleApiKeySubmit("fireflies", key)}
             onDisconnect={resolveStatus("fireflies") === "connected" ? () => handleDisconnect("fireflies") : undefined}
+            onSync={() => handleSync("fireflies")}
             onTest={() => handleTest("fireflies")}
           />
 

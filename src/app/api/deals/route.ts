@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/supabase/auth-check";
 import { getDeals, getAccounts } from "@/lib/db";
 
@@ -65,6 +65,62 @@ export async function GET() {
   } catch (error) {
     console.error("Error fetching deals:", error);
     return NextResponse.json({ error: "Failed to fetch deals" }, { status: 500 });
+  }
+}
+
+// ── PUT: update a deal (stage, amount, etc.) ──
+
+const reverseStageMap: Record<string, string> = {
+  discovery: "Discovery",
+  scope: "Scope",
+  proposal_review: "Proposal Review",
+  go: "Go",
+  contracting: "Contracting",
+  closed_won: "Closed Won",
+  closed_lost: "Closed Lost",
+  lead: "Lead",
+  meeting_scheduled: "Meeting Scheduled",
+  meeting_held: "Meeting Held",
+  qualified: "Qualified",
+};
+
+export async function PUT(req: NextRequest) {
+  try {
+    const { user, supabase } = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { dealId, updates } = body;
+
+    if (!dealId || !updates) {
+      return NextResponse.json({ error: "dealId and updates required" }, { status: 400 });
+    }
+
+    // Map frontend stage IDs back to DB stage names
+    const dbUpdates: Record<string, unknown> = { ...updates, updated_at: new Date().toISOString() };
+    if (dbUpdates.deal_stage && typeof dbUpdates.deal_stage === "string") {
+      dbUpdates.deal_stage = reverseStageMap[dbUpdates.deal_stage as string] || dbUpdates.deal_stage;
+    }
+
+    const { data, error } = await supabase
+      .from("deals")
+      .update(dbUpdates)
+      .eq("id", dealId)
+      .eq("user_id", user.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating deal:", error);
+      return NextResponse.json({ error: "Failed to update deal" }, { status: 500 });
+    }
+
+    return NextResponse.json({ deal: data });
+  } catch (error) {
+    console.error("Error in PUT /api/deals:", error);
+    return NextResponse.json({ error: "Failed to update deal" }, { status: 500 });
   }
 }
 

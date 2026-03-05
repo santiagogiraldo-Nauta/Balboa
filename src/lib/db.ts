@@ -1,5 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import type { Lead, ICPScore, CompanyIntel, DraftMessage, TouchpointEvent, ChannelPresence, CallLog, PrepKit, VideoPrep, BattleCard, EmailCampaignEntry, EngagementAction, LinkedInOutreachStage, SupportedLanguage } from "./types";
+import type { Lead, ICPScore, CompanyIntel, DraftMessage, TouchpointEvent, ChannelPresence, CallLog, MeetingRecord, PrepKit, VideoPrep, BattleCard, EmailCampaignEntry, EngagementAction, LinkedInOutreachStage, SupportedLanguage } from "./types";
 
 // ─── Display Name Cleanup ─────────────────────────────────────────
 
@@ -68,6 +68,74 @@ interface LeadRow {
   updated_at: string;
 }
 
+// ─── Amplemarket calls → CallLog mapping ─────────────────────────
+
+interface AmplemarketCallRaw {
+  id?: string;
+  date?: string;
+  created_at?: string;
+  duration?: number;
+  direction?: string;
+  status?: string;
+  notes?: string;
+  summary?: string;
+  recording_url?: string;
+  recording?: {
+    transcription?: string;
+    duration?: number;
+    recording_url?: string;
+  };
+  matched_lead_id?: string;
+  matched_lead_name?: string;
+  contact_name?: string;
+  contact_email?: string;
+  outcome?: string;
+}
+
+function mergeCallLogs(rawData: Record<string, unknown>): CallLog[] {
+  const manualLogs = (rawData?.callLogs as CallLog[]) || [];
+
+  // Map Amplemarket calls to CallLog format
+  const ampCalls = ((rawData?.amplemarket as Record<string, unknown>)?.calls as AmplemarketCallRaw[]) || [];
+  const ampLogs: CallLog[] = ampCalls.map((c, i) => ({
+    id: c.id || `amp-call-${i}-${Date.now()}`,
+    leadId: c.matched_lead_id || "",
+    callLink: c.recording_url || c.recording?.recording_url || undefined,
+    platform: "amplemarket" as const,
+    date: c.date || c.created_at || new Date().toISOString(),
+    duration: c.recording?.duration ? `${Math.round(c.recording.duration / 60)}m` : c.duration ? `${c.duration}m` : undefined,
+    notes: c.summary || c.notes || c.recording?.transcription?.slice(0, 200) || "",
+    outcomes: c.outcome ? [{ type: "custom" as const, description: c.outcome, completed: false }] : [],
+    generatedDrafts: [],
+    generatedReminders: [],
+  }));
+
+  // Deduplicate by id
+  const ids = new Set(manualLogs.map(l => l.id));
+  const merged = [...manualLogs, ...ampLogs.filter(a => !ids.has(a.id))];
+  return merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
+// ─── Fireflies meetings → MeetingRecord mapping ─────────────────
+
+function mapMeetings(rawData: Record<string, unknown>): MeetingRecord[] {
+  const meetings = (rawData?.meetings as MeetingRecord[]) || [];
+  return meetings
+    .map(m => ({
+      id: m.id || `meeting-${Date.now()}`,
+      title: m.title || "Untitled Meeting",
+      date: m.date || new Date().toISOString(),
+      duration: m.duration || 0,
+      participants: m.participants || [],
+      summary: m.summary || "",
+      actionItems: m.actionItems || "",
+      keywords: m.keywords || "",
+      transcriptHighlights: m.transcriptHighlights || "",
+      platform: m.platform || "fireflies",
+    }))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
 function rowToLead(row: LeadRow): Lead {
   return {
     id: row.id,
@@ -87,7 +155,8 @@ function rowToLead(row: LeadRow): Lead {
     channels: row.channels || { linkedin: true, email: !!row.email, linkedinConnected: false, emailVerified: false },
     emailCampaigns: (row.raw_data?.emailCampaigns as EmailCampaignEntry[]) || [],
     touchpointTimeline: row.contact_history || [],
-    callLogs: (row.raw_data?.callLogs as CallLog[]) || [],
+    callLogs: mergeCallLogs(row.raw_data),
+    meetings: mapMeetings(row.raw_data),
     contactStatus: (row.raw_data?.contactStatus as Lead["contactStatus"]) || "not_contacted",
     nextStep: row.next_action || undefined,
     nextStepDate: row.next_action_date || undefined,
@@ -134,6 +203,7 @@ function leadToRow(userId: string, lead: Lead): Omit<LeadRow, "created_at" | "up
       engagementActions: lead.engagementActions,
       emailCampaigns: lead.emailCampaigns,
       callLogs: lead.callLogs,
+      meetings: lead.meetings,
       contactStatus: lead.contactStatus,
       prepKits: lead.prepKits,
       videoPreps: lead.videoPreps,

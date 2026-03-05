@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Search, Plus, X, Download, UserPlus, Loader2, Sparkles } from "lucide-react";
+import { Search, Plus, X, Download, UserPlus, Loader2, Sparkles, Check } from "lucide-react";
 import { getClientConfig } from "@/lib/config-client";
 
 // ── Types ──
@@ -106,9 +106,15 @@ function ChipInput({ label, chips, onAdd, onRemove, placeholder }: {
   );
 }
 
+// ── Props ──
+
+interface ListBuilderProps {
+  onAddToQueue?: (contacts: GeneratedContact[]) => void;
+}
+
 // ── Component ──
 
-export default function ListBuilder() {
+export default function ListBuilder({ onAddToQueue }: ListBuilderProps) {
   // Persona form state
   const [titles, setTitles] = useState<string[]>([]);
   const [industries, setIndustries] = useState<string[]>([]);
@@ -121,6 +127,10 @@ export default function ListBuilder() {
   const [contacts, setContacts] = useState<GeneratedContact[]>([]);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
+
+  // Save/enroll state
+  const [enrolling, setEnrolling] = useState(false);
+  const [enrolled, setEnrolled] = useState(false);
 
   const { isSandbox } = getClientConfig();
 
@@ -188,6 +198,86 @@ export default function ListBuilder() {
   };
 
   const canGenerate = titles.length > 0 || industries.length > 0;
+
+  // ── Add selected contacts to outreach queue (creates leads) ──
+  const handleAddToQueue = useCallback(async () => {
+    const selected = contacts.filter((c) => c.selected);
+    if (selected.length === 0) return;
+
+    setEnrolling(true);
+    setEnrolled(false);
+
+    try {
+      if (onAddToQueue) {
+        onAddToQueue(selected);
+        setEnrolled(true);
+        setTimeout(() => setEnrolled(false), 3000);
+      } else {
+        // Default: POST to leads-import API
+        const leadsPayload = selected.map((c) => {
+          const nameParts = c.name.split(" ");
+          return {
+            firstName: nameParts[0] || c.name,
+            lastName: nameParts.slice(1).join(" ") || "",
+            company: c.company,
+            position: c.title,
+            linkedinUrl: c.linkedinUrl || undefined,
+            source: "list_builder",
+            icpScore: { overall: c.icpScore, companyFit: 0, roleFit: 0, industryFit: 0, signals: [], tier: c.icpScore >= 85 ? "hot" : c.icpScore >= 70 ? "warm" : "cold" },
+          };
+        });
+
+        const res = await fetch("/api/leads/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leads: leadsPayload }),
+        });
+
+        if (res.ok) {
+          setEnrolled(true);
+          // Deselect enrolled contacts
+          setContacts((prev) => prev.map((c) => c.selected ? { ...c, selected: false } : c));
+          setTimeout(() => setEnrolled(false), 3000);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to add to queue:", err);
+    } finally {
+      setEnrolling(false);
+    }
+  }, [contacts, onAddToQueue]);
+
+  // ── Save list as CSV download ──
+  const handleSaveList = useCallback(() => {
+    const rows = contacts.map((c) => ({
+      Name: c.name,
+      Title: c.title,
+      Company: c.company,
+      Industry: c.industry,
+      Employees: c.employees,
+      "LinkedIn URL": c.linkedinUrl,
+      "ICP Score": c.icpScore,
+    }));
+
+    const headers = Object.keys(rows[0] || {});
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) =>
+        headers.map((h) => {
+          const val = String(row[h as keyof typeof row] || "");
+          return val.includes(",") ? `"${val}"` : val;
+        }).join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `prospect-list-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [contacts]);
 
   return (
     <div style={{ display: "flex", gap: 20, minHeight: 500 }}>
@@ -405,27 +495,33 @@ export default function ListBuilder() {
               </div>
               <div style={{ display: "flex", gap: 6 }}>
                 <button
-                  onClick={() => { /* placeholder for add to outreach queue */ }}
-                  disabled={selectedCount === 0}
+                  onClick={handleAddToQueue}
+                  disabled={selectedCount === 0 || enrolling}
                   style={{
                     padding: "6px 12px",
                     fontSize: 12,
                     fontWeight: 600,
-                    background: selectedCount > 0 ? "var(--balboa-blue)" : "var(--balboa-border-light)",
-                    color: selectedCount > 0 ? "white" : "var(--balboa-text-muted)",
+                    background: enrolled ? "#059669" : selectedCount > 0 ? "var(--balboa-blue)" : "var(--balboa-border-light)",
+                    color: selectedCount > 0 || enrolled ? "white" : "var(--balboa-text-muted)",
                     border: "none",
                     borderRadius: 6,
-                    cursor: selectedCount > 0 ? "pointer" : "not-allowed",
+                    cursor: selectedCount > 0 && !enrolling ? "pointer" : "not-allowed",
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
+                    transition: "all 0.2s ease",
                   }}
                 >
-                  <UserPlus size={12} />
-                  Add to Queue
+                  {enrolling ? (
+                    <><Loader2 size={12} className="animate-spin" /> Adding...</>
+                  ) : enrolled ? (
+                    <><Check size={12} /> Added</>
+                  ) : (
+                    <><UserPlus size={12} /> Add to Queue</>
+                  )}
                 </button>
                 <button
-                  onClick={() => { /* placeholder for save list */ }}
+                  onClick={handleSaveList}
                   style={{
                     padding: "6px 12px",
                     fontSize: 12,

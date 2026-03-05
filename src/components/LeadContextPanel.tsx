@@ -4,9 +4,9 @@ import { useState } from "react";
 import {
   XCircle, CheckCircle, Clock, ChevronDown, Phone, StickyNote,
   Radar, Zap, Mail, Linkedin, AtSign, Calendar, FileText, Video,
-  BookOpen, Sparkles, Target, RefreshCw,
+  BookOpen, Sparkles, Target, RefreshCw, Mic, Play, Users, ExternalLink,
 } from "lucide-react";
-import type { Lead, SupportedLanguage, CommunicationThread, DraftMessage } from "@/lib/types";
+import type { Lead, SupportedLanguage, CommunicationThread, DraftMessage, MeetingRecord } from "@/lib/types";
 import { trackEventClient } from "@/lib/tracking";
 import VascoContextButton from "@/components/VascoContextButton";
 import LeadSummarizer from "@/components/LeadSummarizer";
@@ -391,6 +391,147 @@ export default function LeadContextPanel({
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ──── Section 6b: Call Recordings (Amplemarket) ──── */}
+      {showSection(6) && lead.callLogs && lead.callLogs.length > 0 && lead.callLogs.some(c => c.platform === "amplemarket") && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              <Mic className="w-3.5 h-3.5" style={{ color: "#7c3aed" }} /> Call Recordings
+            </h4>
+            <span style={{ fontSize: 10, color: "var(--balboa-text-muted)", background: "var(--balboa-bg-alt)", padding: "2px 6px", borderRadius: 4, fontWeight: 500 }}>
+              {lead.callLogs.filter(c => c.platform === "amplemarket").length} calls
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {lead.callLogs.filter(c => c.platform === "amplemarket").slice(0, 5).map(call => (
+              <div key={call.id} style={{
+                borderRadius: 10, padding: 12,
+                background: "linear-gradient(135deg, #f5f3ff, #ede9fe)",
+                border: "1px solid #ddd6fe",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Phone className="w-3 h-3" style={{ color: "#7c3aed" }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--balboa-navy)" }}>
+                      {new Date(call.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                    {call.duration && (
+                      <span style={{ fontSize: 10, color: "#7c3aed", background: "#ede9fe", padding: "1px 6px", borderRadius: 4, fontWeight: 500 }}>
+                        {call.duration}
+                      </span>
+                    )}
+                  </div>
+                  {call.callLink && (
+                    <a href={call.callLink} target="_blank" rel="noopener noreferrer"
+                      style={{
+                        display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600,
+                        color: "#7c3aed", textDecoration: "none", background: "white",
+                        padding: "3px 8px", borderRadius: 6, border: "1px solid #ddd6fe",
+                      }}>
+                      <Play className="w-3 h-3" /> Play
+                    </a>
+                  )}
+                </div>
+                {call.notes && (
+                  <p style={{ fontSize: 11, color: "var(--balboa-text-secondary)", lineHeight: 1.5, margin: 0 }}>
+                    {call.notes.length > 180 ? call.notes.slice(0, 180) + "..." : call.notes}
+                  </p>
+                )}
+                {call.outcomes.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                    {call.outcomes.map((o, i) => (
+                      <span key={i} style={{
+                        fontSize: 10, padding: "2px 6px", borderRadius: 4,
+                        background: o.completed ? "#dcfce7" : "#fef3c7",
+                        color: o.completed ? "#166534" : "#92400e", fontWeight: 500,
+                      }}>
+                        {o.completed ? "✓" : "○"} {o.description}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ──── Section 6c: Meeting Intelligence (Fireflies) ──── */}
+      {showSection(6) && lead.meetings && lead.meetings.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <h4 style={{ fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "var(--balboa-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              <Video className="w-3.5 h-3.5" style={{ color: "#0891b2" }} /> Meeting Intelligence
+            </h4>
+            <span style={{ fontSize: 10, color: "var(--balboa-text-muted)", background: "var(--balboa-bg-alt)", padding: "2px 6px", borderRadius: 4, fontWeight: 500 }}>
+              {lead.meetings.length} meetings
+            </span>
+            <VascoContextButton
+              prompt={`Analyze the meeting history for ${lead.firstName} ${lead.lastName}. They have ${lead.meetings?.length || 0} meetings recorded. Summarize key themes, action items, and what the next meeting should focus on.`}
+              tooltip="Ask Vasco about meetings"
+              onClick={onAskVasco}
+            />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {lead.meetings.slice(0, 4).map(meeting => (
+              <div key={meeting.id} style={{
+                borderRadius: 10, padding: 12,
+                background: "linear-gradient(135deg, #ecfeff, #cffafe)",
+                border: "1px solid #a5f3fc",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+                    <Calendar className="w-3 h-3" style={{ color: "#0891b2", flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--balboa-navy)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {meeting.title}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 10, color: "#0891b2", background: "#cffafe", padding: "1px 6px", borderRadius: 4, fontWeight: 500, flexShrink: 0 }}>
+                    {meeting.duration > 0 ? `${meeting.duration}m` : ""}
+                  </span>
+                </div>
+                <div style={{ fontSize: 10, color: "var(--balboa-text-muted)", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>{new Date(meeting.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                  {meeting.participants.length > 0 && (
+                    <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                      <Users className="w-2.5 h-2.5" /> {meeting.participants.length} participants
+                    </span>
+                  )}
+                </div>
+                {meeting.summary && (
+                  <p style={{ fontSize: 11, color: "var(--balboa-text-secondary)", lineHeight: 1.5, margin: "0 0 6px 0" }}>
+                    {meeting.summary.length > 200 ? meeting.summary.slice(0, 200) + "..." : meeting.summary}
+                  </p>
+                )}
+                {meeting.actionItems && (
+                  <div style={{
+                    fontSize: 11, padding: "6px 10px", borderRadius: 6,
+                    background: "rgba(255,255,255,0.7)", border: "1px solid #cffafe",
+                  }}>
+                    <span style={{ fontWeight: 600, color: "#0891b2", fontSize: 10 }}>Action Items:</span>
+                    <p style={{ margin: "2px 0 0", color: "var(--balboa-text-secondary)", lineHeight: 1.4 }}>
+                      {meeting.actionItems.length > 150 ? meeting.actionItems.slice(0, 150) + "..." : meeting.actionItems}
+                    </p>
+                  </div>
+                )}
+                {meeting.keywords && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                    {meeting.keywords.split(",").slice(0, 5).map((kw, i) => (
+                      <span key={i} style={{
+                        fontSize: 9, padding: "1px 5px", borderRadius: 3,
+                        background: "#e0f2fe", color: "#0369a1", fontWeight: 500,
+                      }}>
+                        {kw.trim()}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

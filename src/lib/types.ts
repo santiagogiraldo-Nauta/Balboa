@@ -39,6 +39,7 @@ export interface Lead {
   emailCampaigns: EmailCampaignEntry[];
   touchpointTimeline: TouchpointEvent[];
   callLogs?: CallLog[];
+  meetings?: MeetingRecord[];
   // Outreach tracking (mirrors Excel workflow)
   contactStatus: "positive" | "neutral" | "negative" | "not_contacted";
   nextStep?: string;
@@ -93,6 +94,21 @@ export interface CallOutcome {
   description: string;
   dueDate?: string;
   completed: boolean;
+}
+
+// === MEETING RECORDS (Fireflies / Calendar) ===
+
+export interface MeetingRecord {
+  id: string;
+  title: string;
+  date: string;
+  duration: number; // minutes
+  participants: string[];
+  summary: string;
+  actionItems: string;
+  keywords: string;
+  transcriptHighlights: string;
+  platform?: string;
 }
 
 // === EMAIL INTELLIGENCE ===

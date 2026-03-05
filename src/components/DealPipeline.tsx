@@ -40,16 +40,20 @@ export default function DealPipeline({
   deals,
   leads,
   onNavigateToLead,
+  onDealStageChange,
 }: {
   deals: PipelineDeal[];
   leads?: Lead[];
   onNavigateToLead?: (leadId: string) => void;
+  onDealStageChange?: (dealId: string, newStage: string) => void;
 }) {
   const [selectedDeal, setSelectedDeal] = useState<PipelineDeal | null>(null);
   const [activePipeline, setActivePipeline] = useState<"sales" | "busdev" | "all">("sales");
   const [presetView, setPresetView] = useState<PresetView>("open");
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [showSidebar, setShowSidebar] = useState(true);
+  const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
   if (deals.length === 0) return <EmptyDeals />;
 
@@ -312,10 +316,29 @@ export default function DealPipeline({
             const stageWeighted = stageDeals.reduce((s, d) => s + ((d.amount || 0) * (stage.probability) / 100), 0);
 
             return (
-              <div key={stage.id} style={{
-                minWidth: selectedDeal ? 160 : 200, flex: 1,
-                transition: "min-width 0.3s ease",
-              }}>
+              <div key={stage.id}
+                onDragOver={(e) => { e.preventDefault(); setDragOverStage(stage.id); }}
+                onDragLeave={() => setDragOverStage(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverStage(null);
+                  if (draggedDealId && onDealStageChange) {
+                    const deal = filteredDeals.find(d => d.id === draggedDealId);
+                    if (deal && getDealStageForView(deal) !== stage.id) {
+                      onDealStageChange(draggedDealId, stage.id);
+                      trackEventClient({ eventCategory: "deal", eventAction: "deal_stage_changed", dealId: draggedDealId, metadata: { newStage: stage.id } });
+                    }
+                  }
+                  setDraggedDealId(null);
+                }}
+                style={{
+                  minWidth: selectedDeal ? 160 : 200, flex: 1,
+                  transition: "all 0.3s ease",
+                  borderRadius: 10,
+                  outline: dragOverStage === stage.id ? `2px dashed ${stage.color}` : "none",
+                  outlineOffset: -2,
+                  background: dragOverStage === stage.id ? `${stage.color}08` : "transparent",
+                }}>
                 {/* Column Header */}
                 <div style={{
                   padding: "10px 12px", borderRadius: "10px 10px 0 0",
@@ -345,12 +368,17 @@ export default function DealPipeline({
 
                     return (
                       <div key={deal.id}
+                        draggable
+                        onDragStart={(e) => { setDraggedDealId(deal.id); e.dataTransfer.effectAllowed = "move"; }}
+                        onDragEnd={() => { setDraggedDealId(null); setDragOverStage(null); }}
                         onClick={() => { setSelectedDeal(isSelected ? null : deal); if (!isSelected) trackEventClient({ eventCategory: "deal", eventAction: "deal_viewed", dealId: deal.id, numericValue: deal.amount || 0 }); }}
                         className="card card-hover fade-in"
                         style={{
-                          padding: "10px 12px", cursor: "pointer",
+                          padding: "10px 12px", cursor: draggedDealId ? "grabbing" : "pointer",
                           borderColor: isSelected ? stage.color : undefined,
                           boxShadow: isSelected ? `0 0 0 2px ${stage.color}22` : undefined,
+                          opacity: draggedDealId === deal.id ? 0.5 : 1,
+                          transition: "opacity 0.15s ease",
                         }}>
                         {/* Deal name + health dot */}
                         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, marginBottom: 4 }}>
