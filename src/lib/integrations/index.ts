@@ -6,6 +6,7 @@ import { hubspotAdapter } from "./hubspot";
 import { ampleMarketAdapter } from "./amplemarket";
 import { airCallAdapter } from "./aircall";
 import { emailAdapter } from "./email";
+import { firefliesAdapter } from "./fireflies";
 
 export type { IntegrationAdapter, IntegrationStatus, DataSyncAdapter, OutreachAdapter } from "./types";
 
@@ -15,6 +16,7 @@ const adapters: Record<string, IntegrationAdapter> = {
   amplemarket: ampleMarketAdapter,
   aircall: airCallAdapter,
   email: emailAdapter,
+  fireflies: firefliesAdapter,
 };
 
 /**

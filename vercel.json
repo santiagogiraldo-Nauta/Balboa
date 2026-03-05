@@ -1,15 +1,48 @@
 {
   "functions": {
     "src/app/api/gmail/sync/route.ts": {
-      "maxDuration": 30
+      "maxDuration": 60
+    },
+    "src/app/api/gmail/sync-page/route.ts": {
+      "maxDuration": 60
     },
     "src/app/api/gmail/import-contacts/route.ts": {
       "maxDuration": 30
+    },
+    "src/app/api/gmail/send/route.ts": {
+      "maxDuration": 15
     },
     "src/app/api/amplemarket/enrich/route.ts": {
       "maxDuration": 60
     },
     "src/app/api/amplemarket/import/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/amplemarket/sync-contacts/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/amplemarket/calls/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/amplemarket/enrich-companies/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/fireflies/sync/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/signals/generate/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/playbook/analyze/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/generate-battle-card/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/leads/clean-names/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/assistant/route.ts": {
       "maxDuration": 30
     }
   }

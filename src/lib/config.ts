@@ -40,6 +40,7 @@ export interface BalboaConfig {
     ampleMarket: IntegrationConfig;
     airCall: IntegrationConfig;
     email: IntegrationConfig;
+    fireflies: IntegrationConfig;
   };
 }
 
@@ -99,6 +100,12 @@ function getConfig(): BalboaConfig {
         enabled: !!process.env.EMAIL_API_KEY,
         apiKey: process.env.EMAIL_API_KEY,
         baseUrl: "",
+        sandboxMode: isSandbox,
+      },
+      fireflies: {
+        enabled: !!process.env.FIREFLIES_API_KEY,
+        apiKey: process.env.FIREFLIES_API_KEY,
+        baseUrl: "https://api.fireflies.ai/graphql",
         sandboxMode: isSandbox,
       },
     },

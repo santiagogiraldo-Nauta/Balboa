@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/supabase/auth-check";
-import { getGmailClient, fetchGmailThreads } from "@/lib/gmail/service";
+import {
+  getGmailClient,
+  fetchGmailThreads,
+  fetchGmailThreadsPaginated,
+} from "@/lib/gmail/service";
 import { matchGmailToLeads } from "@/lib/gmail/match";
 import { persistGmailThreads } from "@/lib/gmail/persist";
 
@@ -10,9 +14,12 @@ import { persistGmailThreads } from "@/lib/gmail/persist";
  * Returns data in the CommunicationThread format the Inbox expects.
  *
  * Query params:
- *   maxResults — max threads to fetch (default 200)
- *   q — Gmail search query (default "newer_than:90d")
- *   fullSync — if "true", fetch all history (no date filter, max 500)
+ *   mode       — "recent" (default) or "full"
+ *                recent: newer_than:90d, maxResults 200, single page
+ *                full:   newer_than:180d, maxResults 500, paginated (up to 5 pages)
+ *   maxResults — override max threads per page (default depends on mode)
+ *   q          — override Gmail search query (default depends on mode)
+ *   fullSync   — (legacy) if "true", equivalent to mode=full
  */
 export async function GET(request: NextRequest) {
   const { user, supabase, error } = await getAuthUser();
@@ -33,26 +40,47 @@ export async function GET(request: NextRequest) {
   const { gmail, tokenRow } = gmailResult;
 
   try {
-    // Parse query params
-    const isFullSync = request.nextUrl.searchParams.get("fullSync") === "true";
-    const defaultMaxResults = isFullSync ? 500 : 200;
-    const defaultQuery = isFullSync ? "" : "newer_than:90d";
+    // ── Parse mode ────────────────────────────────────────────────
+    const searchParams = request.nextUrl.searchParams;
+    const isLegacyFullSync = searchParams.get("fullSync") === "true";
+    const mode = searchParams.get("mode") || (isLegacyFullSync ? "full" : "recent");
+    const isFullMode = mode === "full";
+
+    const defaultMaxResults = isFullMode ? 500 : 200;
+    const defaultQuery = isFullMode ? "newer_than:180d" : "newer_than:90d";
 
     const maxResults = parseInt(
-      request.nextUrl.searchParams.get("maxResults") || String(defaultMaxResults)
+      searchParams.get("maxResults") || String(defaultMaxResults)
     );
-    const query = request.nextUrl.searchParams.get("q") || defaultQuery;
+    const query = searchParams.get("q") || defaultQuery;
 
-    // Fetch Gmail threads
-    const gmailThreads = await fetchGmailThreads(gmail, { maxResults, query });
+    // ── Fetch Gmail threads ───────────────────────────────────────
+    let gmailThreads;
+    let paginationMeta: { totalPages?: number; nextPageToken?: string } = {};
 
-    // Fetch user's leads with full data for matching (email, name, company)
+    if (isFullMode) {
+      // Full mode: paginated fetch (up to 5 pages)
+      const result = await fetchGmailThreadsPaginated(gmail, {
+        maxResults,
+        query,
+        maxPages: 5,
+      });
+      gmailThreads = result.threads;
+      paginationMeta = {
+        totalPages: result.totalPages,
+        nextPageToken: result.nextPageToken,
+      };
+    } else {
+      // Recent mode: single-page fetch (backward compatible)
+      gmailThreads = await fetchGmailThreads(gmail, { maxResults, query });
+    }
+
+    // ── Fetch user's leads for matching ───────────────────────────
     const { data: leadsData } = await supabase
       .from("leads")
       .select("id, email, first_name, last_name, company, linkedin_url, raw_data")
       .eq("user_id", user.id);
 
-    // Build leads array with all available data for matching
     const leads = (leadsData || []).map((l) => {
       const rawData = l.raw_data as Record<string, unknown> | null;
       return {
@@ -67,37 +95,63 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Match threads to leads (now with name + domain matching)
+    // ── Match threads to leads ────────────────────────────────────
     const { matched, unmatched } = matchGmailToLeads(
       gmailThreads,
       leads,
       tokenRow.gmail_email
     );
 
-    // Persist threads to database (conversations + messages tables)
-    // Must await on Vercel — serverless functions terminate after response
+    // ── Persist threads to database ───────────────────────────────
     try {
       const persistResult = await persistGmailThreads(supabase, user.id, matched, unmatched);
-      console.log(`[gmail-sync] Persisted ${persistResult.conversationsUpserted} conversations, ${persistResult.messagesUpserted} messages`);
+      console.log(
+        `[gmail-sync] Persisted ${persistResult.conversationsUpserted} conversations, ${persistResult.messagesUpserted} messages`
+      );
     } catch (persistErr) {
       console.error("[gmail-sync] Persistence error:", persistErr);
     }
 
-    // Update last_sync_at
+    // ── Store historyId + update last_sync_at ─────────────────────
+    // Fetch the latest historyId from Gmail for future incremental sync
+    const syncUpdates: Record<string, unknown> = {
+      last_sync_at: new Date().toISOString(),
+    };
+
+    try {
+      const { data: profile } = await gmail.users.getProfile({
+        userId: "me",
+      });
+      if (profile.historyId) {
+        syncUpdates.sync_history_id = profile.historyId;
+      }
+    } catch (profileErr) {
+      console.error("[gmail-sync] Failed to fetch historyId:", profileErr);
+    }
+
     await supabase
       .from("gmail_tokens")
-      .update({ last_sync_at: new Date().toISOString() })
+      .update(syncUpdates)
       .eq("id", tokenRow.id);
 
+    // ── Response ──────────────────────────────────────────────────
     return NextResponse.json({
       connected: true,
       email: tokenRow.gmail_email,
+      mode,
       matched,
       unmatched,
       threadCount: gmailThreads.length,
       matchedCount: Object.values(matched).flat().length,
       unmatchedCount: unmatched.length,
       lastSyncAt: new Date().toISOString(),
+      ...(isFullMode
+        ? {
+            totalPages: paginationMeta.totalPages,
+            nextPageToken: paginationMeta.nextPageToken || null,
+            hasMore: !!paginationMeta.nextPageToken,
+          }
+        : {}),
     });
   } catch (err: unknown) {
     console.error("Gmail sync error:", err);

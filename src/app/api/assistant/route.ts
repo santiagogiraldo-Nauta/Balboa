@@ -141,6 +141,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     messages = body.messages || [];
     context = body.context || "";
+    const selectedLeadId: string | null = body.selectedLeadId || null;
 
     // If no API key, use sandbox response
     if (!anthropic || !HAS_API_KEY) {
@@ -149,16 +150,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: sandboxMessage, sandbox: true });
     }
 
-    // Enrich context with email activity data from DB
-    let emailContext = "";
+    // ── Enrich context with server-side data from DB ──
+    let enrichedContext = "";
     if (supabase && user) {
       try {
-        const [convResult, inboundPending, sentCount, receivedCount] = await Promise.all([
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        // Build all queries in parallel for performance
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const queries: PromiseLike<any>[] = [
+          // [0] Email thread count
           supabase
             .from("conversations")
             .select("*", { count: "exact", head: true })
             .eq("user_id", user.id)
             .eq("channel", "email"),
+          // [1] Inbound pending (threads needing reply)
           supabase
             .from("conversations")
             .select("id, subject, lead_id, last_message_date")
@@ -168,46 +176,212 @@ export async function POST(req: NextRequest) {
             .not("lead_id", "is", null)
             .order("last_message_date", { ascending: false })
             .limit(10),
+          // [2] Sent email count
           supabase
             .from("messages")
             .select("*", { count: "exact", head: true })
             .eq("user_id", user.id)
             .eq("channel", "email")
             .eq("direction", "outbound"),
+          // [3] Received email count
           supabase
             .from("messages")
             .select("*", { count: "exact", head: true })
             .eq("user_id", user.id)
             .eq("channel", "email")
             .eq("direction", "inbound"),
-        ]);
+          // [4] Messages today count
+          supabase
+            .from("messages")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .gte("created_at", todayStart.toISOString()),
+          // [5] Active signals (pending, last 15)
+          supabase
+            .from("signals_and_actions")
+            .select("signal_type, signal_description, action_description, action_urgency, lead_id, recommended_channel, created_at")
+            .eq("user_id", user.id)
+            .eq("action_status", "pending")
+            .order("created_at", { ascending: false })
+            .limit(15),
+          // [6] Lead notes — fetch leads with raw_data that has notes
+          supabase
+            .from("leads")
+            .select("id, first_name, last_name, company, raw_data")
+            .eq("user_id", user.id)
+            .order("updated_at", { ascending: false })
+            .limit(100),
+        ];
 
+        // [7] Selected lead messages (only if a lead is selected)
+        if (selectedLeadId) {
+          queries.push(
+            supabase
+              .from("messages")
+              .select("created_at, direction, subject, body, channel")
+              .eq("user_id", user.id)
+              .eq("lead_id", selectedLeadId)
+              .order("created_at", { ascending: false })
+              .limit(10)
+          );
+          // [8] Selected lead raw_data for amplemarket
+          queries.push(
+            supabase
+              .from("leads")
+              .select("raw_data")
+              .eq("user_id", user.id)
+              .eq("id", selectedLeadId)
+              .single()
+          );
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const results = await Promise.all(queries) as Array<{ data?: any; count?: number | null; error?: unknown }>;
+
+        const convResult = results[0];
+        const inboundPending = results[1];
+        const sentCount = results[2];
+        const receivedCount = results[3];
+        const todayMessages = results[4];
+        const signalsResult = results[5];
+        const leadsWithNotes = results[6];
+        const selectedLeadMessages = selectedLeadId ? results[7] : null;
+        const selectedLeadRaw = selectedLeadId ? results[8] : null;
+
+        // ── A. EMAIL ACTIVITY SUMMARY ──
         const totalThreads = convResult.count || 0;
         const sent = sentCount.count || 0;
         const received = receivedCount.count || 0;
-        const pendingReplies = inboundPending.data || [];
+        const msgToday = todayMessages.count || 0;
+        const pendingReplies = (inboundPending.data || []) as Array<{ subject?: string; last_message_date?: string }>;
+        const responseRate = sent > 0 ? Math.round((received / sent) * 100) : 0;
 
-        if (totalThreads > 0) {
-          emailContext = `\n## EMAIL ACTIVITY
-- ${totalThreads} email threads synced from Gmail
-- ${sent} emails sent, ${received} received
-- ${pendingReplies.length} threads with unanswered inbound messages (needs reply)
-${pendingReplies.length > 0 ? `- Threads needing reply:\n${pendingReplies.slice(0, 5).map(
-  (t) => `  - "${t.subject}" (last message: ${t.last_message_date ? new Date(t.last_message_date as string).toLocaleDateString() : "unknown"})`
-).join("\n")}` : ""}
+        if (totalThreads > 0 || sent > 0) {
+          enrichedContext += `\n## EMAIL ACTIVITY SUMMARY
+- ${totalThreads} email threads synced
+- ${sent} sent, ${received} received (${responseRate}% response rate)
+- ${msgToday} messages today
+- ${pendingReplies.length} threads awaiting your reply
+${pendingReplies.length > 0 ? pendingReplies.slice(0, 5).map(
+  (t) => `  - "${t.subject || "(no subject)"}" (${t.last_message_date ? new Date(t.last_message_date).toLocaleDateString() : "unknown"})`
+).join("\n") : ""}
 `;
         }
+
+        // ── B. SELECTED LEAD EMAIL HISTORY ──
+        if (selectedLeadId && selectedLeadMessages?.data) {
+          const msgs = selectedLeadMessages.data as Array<{
+            created_at: string;
+            direction: string;
+            subject: string | null;
+            body: string;
+            channel: string;
+          }>;
+          if (msgs.length > 0) {
+            enrichedContext += `\n## SELECTED LEAD EMAIL HISTORY (last ${msgs.length} messages)\n`;
+            msgs.forEach((m) => {
+              const date = new Date(m.created_at).toLocaleDateString();
+              const dir = m.direction === "outbound" ? "SENT" : "RECEIVED";
+              const subj = m.subject ? `"${m.subject}"` : "(no subject)";
+              const bodyTrunc = (m.body || "").replace(/\n/g, " ").slice(0, 200);
+              enrichedContext += `- [${date}] ${dir} via ${m.channel} | ${subj} | ${bodyTrunc}${(m.body || "").length > 200 ? "..." : ""}\n`;
+            });
+          }
+        }
+
+        // ── C. LEAD NOTES ──
+        if (leadsWithNotes?.data) {
+          const allLeads = leadsWithNotes.data as Array<{
+            id: string;
+            first_name: string;
+            last_name: string;
+            company: string;
+            raw_data?: Record<string, unknown>;
+          }>;
+          const leadsWithActualNotes = allLeads
+            .filter((l) => l.raw_data?.notes && typeof l.raw_data.notes === "string" && (l.raw_data.notes as string).trim().length > 0)
+            .slice(0, 20);
+
+          if (leadsWithActualNotes.length > 0) {
+            enrichedContext += `\n## LEAD NOTES (${leadsWithActualNotes.length} leads with notes)\n`;
+            leadsWithActualNotes.forEach((l) => {
+              const note = ((l.raw_data?.notes as string) || "").replace(/\n/g, " ").slice(0, 100);
+              enrichedContext += `- ${l.first_name} ${l.last_name} @ ${l.company}: ${note}${((l.raw_data?.notes as string) || "").length > 100 ? "..." : ""}\n`;
+            });
+          }
+        }
+
+        // ── D. ACTIVE SIGNALS ──
+        if (signalsResult?.data) {
+          const signals = signalsResult.data as Array<{
+            signal_type: string;
+            signal_description: string | null;
+            action_description: string | null;
+            action_urgency: string | null;
+            lead_id: string | null;
+            recommended_channel: string | null;
+            created_at: string;
+          }>;
+          if (signals.length > 0) {
+            // Cross-reference lead names from the leads data we already fetched
+            const leadMap = new Map<string, string>();
+            if (leadsWithNotes?.data) {
+              (leadsWithNotes.data as Array<{ id: string; first_name: string; last_name: string; company: string }>)
+                .forEach((l) => leadMap.set(l.id, `${l.first_name} ${l.last_name}`));
+            }
+
+            enrichedContext += `\n## ACTIVE SIGNALS (${signals.length} pending)\n`;
+            signals.slice(0, 10).forEach((s) => {
+              const leadName = s.lead_id ? (leadMap.get(s.lead_id) || "Unknown") : "General";
+              const urgency = s.action_urgency || "medium";
+              const action = (s.action_description || s.signal_description || "").slice(0, 120);
+              enrichedContext += `- [${urgency.toUpperCase()}] ${s.signal_type} — ${leadName}: ${action}\n`;
+            });
+          }
+        }
+
+        // ── E. AMPLEMARKET DATA FOR SELECTED LEAD ──
+        if (selectedLeadId && selectedLeadRaw?.data) {
+          const rawData = (selectedLeadRaw.data as { raw_data?: Record<string, unknown> })?.raw_data;
+          if (rawData?.amplemarket) {
+            const amp = rawData.amplemarket as Record<string, unknown>;
+            enrichedContext += `\n## AMPLEMARKET DATA (selected lead)\n`;
+            if (amp.company_enrichment) {
+              const ce = amp.company_enrichment as Record<string, unknown>;
+              const parts: string[] = [];
+              if (ce.industry) parts.push(`Industry: ${ce.industry}`);
+              if (ce.employee_count) parts.push(`Employees: ${ce.employee_count}`);
+              if (ce.revenue) parts.push(`Revenue: ${ce.revenue}`);
+              if (ce.founded) parts.push(`Founded: ${ce.founded}`);
+              if (ce.headquarters) parts.push(`HQ: ${ce.headquarters}`);
+              if (parts.length > 0) enrichedContext += `- Company: ${parts.join(", ")}\n`;
+            }
+            if (amp.sequence_enrollment) {
+              const se = amp.sequence_enrollment as Record<string, unknown>;
+              const seqParts: string[] = [];
+              if (se.sequence_name) seqParts.push(`Sequence: ${se.sequence_name}`);
+              if (se.status) seqParts.push(`Status: ${se.status}`);
+              if (se.current_step) seqParts.push(`Step: ${se.current_step}`);
+              if (seqParts.length > 0) enrichedContext += `- Enrollment: ${seqParts.join(", ")}\n`;
+            }
+            if (amp.call_transcription) {
+              const ct = String(amp.call_transcription).replace(/\n/g, " ").slice(0, 300);
+              enrichedContext += `- Call highlights: ${ct}${String(amp.call_transcription).length > 300 ? "..." : ""}\n`;
+            }
+          }
+        }
+
       } catch (err) {
-        console.error("[assistant] Error fetching email context:", err);
+        console.error("[assistant] Error fetching enriched context:", err);
       }
     }
 
     const systemPrompt = `You are Vasco, the AI sales navigator inside the Balboa platform. Named after Vasco Nunez de Balboa — the explorer who crossed uncharted jungle to discover the Pacific Ocean. Like your namesake, you chart the path forward through complex territory.
 
-You have complete real-time access to the user's sales pipeline, leads, deals, accounts, and email activity.
+You have complete real-time access to the user's sales pipeline, leads, deals, accounts, email activity, signals, and conversation history.
 
 ${context}
-${emailContext}
+${enrichedContext}
 
 ## YOUR PERSONALITY
 - Direct, confident, no fluff — like a seasoned navigator who knows the terrain

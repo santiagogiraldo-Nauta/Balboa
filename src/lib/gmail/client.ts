@@ -12,8 +12,9 @@ export function createOAuth2Client() {
   );
 }
 
-/** Gmail scopes — read-only to start, send can be added later */
+/** Gmail scopes — read + send + user identity */
 export const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/userinfo.email",
 ];

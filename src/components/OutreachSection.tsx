@@ -33,6 +33,7 @@ interface OutreachSectionProps {
   onGenerateMessage: (lead: Lead, type: string, channel?: "email" | "linkedin") => void;
   onUpdateDraftStatus: (leadId: string, draftId: string, status: DraftMessage["status"]) => void;
   onBattleCardGenerate: (leadId: string, competitor: string) => void;
+  battleCardGenerating?: string | null;
   onOpenEmailPopup: (prefill?: { subject?: string; body?: string; draftId?: string }) => void;
   onOpenLinkedInPopup: (prefill?: { body?: string; draftId?: string }) => void;
   onOpenProposalPopup: () => void;
@@ -72,6 +73,7 @@ export default function OutreachSection({
   onGenerateMessage,
   onUpdateDraftStatus,
   onBattleCardGenerate,
+  battleCardGenerating,
   onOpenEmailPopup,
   onOpenLinkedInPopup,
   onOpenProposalPopup,
@@ -111,6 +113,7 @@ export default function OutreachSection({
               onGenerateMessage={onGenerateMessage}
               onUpdateDraftStatus={onUpdateDraftStatus}
               onBattleCardGenerate={onBattleCardGenerate}
+              battleCardGenerating={battleCardGenerating}
               onCopyMessage={onCopyMessage}
               onOpenEmailPopup={onOpenEmailPopup}
               onOpenLinkedInPopup={onOpenLinkedInPopup}

@@ -96,7 +96,7 @@ export async function fetchGmailThreads(
     query?: string;
   } = {}
 ): Promise<ParsedGmailThread[]> {
-  const { maxResults = 50, query = "newer_than:7d" } = options;
+  const { maxResults = 200, query = "newer_than:90d" } = options;
 
   // 1. List thread IDs
   const { data: listData } = await gmail.users.threads.list({
@@ -136,6 +136,94 @@ export async function fetchGmailThreads(
   }
 
   return threads;
+}
+
+// ── Paginated Fetch ──
+
+export interface PaginatedThreadsResult {
+  threads: ParsedGmailThread[];
+  nextPageToken?: string;
+  totalPages: number;
+}
+
+/**
+ * Fetch Gmail threads with full pagination support.
+ * Loops through multiple pages of gmail.users.threads.list,
+ * fetching thread metadata for each page.
+ *
+ * Designed for deep history sync (6 months).
+ * Each page fetches up to `maxResults` thread IDs, then
+ * resolves their metadata in batches of 10.
+ */
+export async function fetchGmailThreadsPaginated(
+  gmail: gmail_v1.Gmail,
+  options: {
+    maxResults?: number;
+    query?: string;
+    maxPages?: number;
+    startPageToken?: string;
+  } = {}
+): Promise<PaginatedThreadsResult> {
+  const {
+    maxResults = 100,
+    query = "newer_than:180d",
+    maxPages = 5,
+    startPageToken,
+  } = options;
+
+  const allThreads: ParsedGmailThread[] = [];
+  let pageToken: string | undefined = startPageToken;
+  let pagesProcessed = 0;
+
+  while (pagesProcessed < maxPages) {
+    // List thread IDs for this page
+    const { data: listData } = await gmail.users.threads.list({
+      userId: "me",
+      maxResults,
+      q: query,
+      ...(pageToken ? { pageToken } : {}),
+    });
+
+    if (!listData.threads || listData.threads.length === 0) break;
+
+    // Fetch metadata for each thread in batches of 10
+    const batchSize = 10;
+    for (let i = 0; i < listData.threads.length; i += batchSize) {
+      const batch = listData.threads.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(async (t) => {
+          try {
+            const { data: thread } = await gmail.users.threads.get({
+              userId: "me",
+              id: t.id!,
+              format: "metadata",
+              metadataHeaders: ["From", "To", "Subject", "Date", "Message-ID"],
+            });
+            return thread;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      for (const thread of batchResults) {
+        if (!thread?.messages) continue;
+        allThreads.push(parseGmailThread(thread));
+      }
+    }
+
+    pagesProcessed++;
+    pageToken = listData.nextPageToken || undefined;
+
+    // No more pages available
+    if (!pageToken) break;
+  }
+
+  return {
+    threads: allThreads,
+    nextPageToken: pageToken,
+    totalPages: pagesProcessed,
+  };
 }
 
 // ── Fetch Full Thread Body ──

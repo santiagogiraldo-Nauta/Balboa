@@ -1,6 +1,46 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import type { Lead, ICPScore, CompanyIntel, DraftMessage, TouchpointEvent, ChannelPresence, CallLog, PrepKit, VideoPrep, BattleCard, EmailCampaignEntry, EngagementAction, LinkedInOutreachStage, SupportedLanguage } from "./types";
 
+// ─── Display Name Cleanup ─────────────────────────────────────────
+
+/**
+ * Sanitizes a lead's display name at render time.
+ * If firstName looks like an email address, extracts a human-readable
+ * name from the email local part (e.g. "john.doe@co.com" → "John Doe").
+ * Otherwise returns "FirstName LastName" trimmed.
+ */
+export function cleanDisplayName(
+  firstName: string,
+  lastName: string,
+  email?: string
+): string {
+  const fn = (firstName || "").trim();
+  const ln = (lastName || "").trim();
+
+  // Check if firstName looks like an email (contains @ or is purely
+  // lowercase alphanumeric with dots/underscores — no spaces, no uppercase)
+  const looksLikeEmail =
+    fn.includes("@") || (/^[a-z0-9._+-]+$/.test(fn) && fn.length > 0 && !fn.includes(" "));
+
+  if (looksLikeEmail && email) {
+    const localPart = email.split("@")[0] || "";
+    const parts = localPart
+      .split(/[._-]+/)
+      .filter((p) => p.length > 0)
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase());
+
+    if (parts.length >= 2) {
+      return `${parts[0]} ${parts.slice(1).join(" ")}`;
+    }
+    if (parts.length === 1) {
+      return ln ? `${parts[0]} ${ln}` : parts[0];
+    }
+  }
+
+  // Normal case — just combine first and last
+  return [fn, ln].filter(Boolean).join(" ");
+}
+
 // ─── Row ↔ Lead mapping ───────────────────────────────────────────
 
 interface LeadRow {

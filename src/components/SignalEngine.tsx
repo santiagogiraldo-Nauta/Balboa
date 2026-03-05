@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import type { Lead, LiveSignal, SignalType, SignalUrgency } from "@/lib/types";
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -12,24 +12,53 @@ const URGENCY_COLORS: Record<SignalUrgency, string> = {
   low: "#868e96",
 };
 
-const SIGNAL_TYPE_META: Record<
-  SignalType,
-  { icon: string; label: string; defaultUrgency: SignalUrgency; defaultChannel: "email" | "linkedin" }
-> = {
-  email_open: { icon: "\u2709\uFE0F", label: "Email Open", defaultUrgency: "immediate", defaultChannel: "email" },
-  linkedin_view: { icon: "\uD83D\uDC41", label: "LinkedIn View", defaultUrgency: "high", defaultChannel: "linkedin" },
-  linkedin_engagement: { icon: "\uD83D\uDC4D", label: "LinkedIn Engagement", defaultUrgency: "high", defaultChannel: "linkedin" },
-  hubspot_stage_change: { icon: "\uD83D\uDD04", label: "Stage Change", defaultUrgency: "immediate", defaultChannel: "email" },
-  marketing_signal: { icon: "\uD83D\uDCE3", label: "Marketing Signal", defaultUrgency: "medium", defaultChannel: "email" },
-  job_change: { icon: "\uD83D\uDCBC", label: "Job Change", defaultUrgency: "high", defaultChannel: "linkedin" },
-  company_growth: { icon: "\uD83D\uDCC8", label: "Company Growth", defaultUrgency: "medium", defaultChannel: "email" },
-  funding_round: { icon: "\uD83D\uDCB0", label: "Funding Round", defaultUrgency: "high", defaultChannel: "email" },
-  competitor_mention: { icon: "\uD83C\uDFAF", label: "Competitor Mention", defaultUrgency: "medium", defaultChannel: "email" },
-  website_visit: { icon: "\uD83C\uDF10", label: "Website Visit", defaultUrgency: "immediate", defaultChannel: "email" },
+// Extended meta map that covers both legacy SignalType values and the new real signal types.
+// The component uses string keys for lookup so it works with both old and new types.
+const SIGNAL_META: Record<string, { icon: string; label: string }> = {
+  // Real signal types from the API
+  email_reply_needed: { icon: "\u2709\uFE0F", label: "Reply Needed" },
+  follow_up_needed: { icon: "\uD83D\uDD04", label: "Follow Up" },
+  active_negotiation: { icon: "\uD83D\uDCE3", label: "Active Thread" },
+  new_lead_no_outreach: { icon: "\uD83C\uDF10", label: "New Lead" },
+  scheduled_action: { icon: "\uD83D\uDCBC", label: "Scheduled Action" },
+  // Legacy types (kept for backward compatibility)
+  email_open: { icon: "\u2709\uFE0F", label: "Email Open" },
+  linkedin_view: { icon: "\uD83D\uDC41", label: "LinkedIn View" },
+  linkedin_engagement: { icon: "\uD83D\uDC4D", label: "LinkedIn Engagement" },
+  hubspot_stage_change: { icon: "\uD83D\uDD04", label: "Stage Change" },
+  marketing_signal: { icon: "\uD83D\uDCE3", label: "Marketing Signal" },
+  job_change: { icon: "\uD83D\uDCBC", label: "Job Change" },
+  company_growth: { icon: "\uD83D\uDCC8", label: "Company Growth" },
+  funding_round: { icon: "\uD83D\uDCB0", label: "Funding Round" },
+  competitor_mention: { icon: "\uD83C\uDFAF", label: "Competitor Mention" },
+  website_visit: { icon: "\uD83C\uDF10", label: "Website Visit" },
 };
+
+const DEFAULT_META = { icon: "\uD83D\uDCCC", label: "Signal" };
+
+// Map from real API signal types to closest existing SignalType for TypeScript
+const REAL_TYPE_TO_SIGNAL_TYPE: Record<string, SignalType> = {
+  email_reply_needed: "email_open",
+  follow_up_needed: "hubspot_stage_change",
+  active_negotiation: "marketing_signal",
+  new_lead_no_outreach: "website_visit",
+  scheduled_action: "job_change",
+};
+
+function getSignalMeta(signalType: string): { icon: string; label: string } {
+  return SIGNAL_META[signalType] || DEFAULT_META;
+}
 
 function timeAgo(isoDate: string): string {
   const seconds = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
+  if (seconds < 0) {
+    // Future dates (e.g. scheduled actions)
+    const absSeconds = Math.abs(seconds);
+    const hours = Math.floor(absSeconds / 3600);
+    if (hours < 24) return `in ${hours}h`;
+    const days = Math.floor(hours / 24);
+    return `in ${days}d`;
+  }
   if (seconds < 60) return "just now";
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
@@ -39,106 +68,47 @@ function timeAgo(isoDate: string): string {
   return `${days}d ago`;
 }
 
-function generateMockSignals(leads: Lead[]): LiveSignal[] {
-  if (leads.length === 0) return [];
+// ─── API response type ────────────────────────────────────────
 
-  const signalTemplates: Array<{
-    signalType: SignalType;
-    descFn: (l: Lead) => string;
-    actionFn: (l: Lead) => string;
-  }> = [
-    {
-      signalType: "email_open",
-      descFn: (l) => `${l.firstName} opened your last email 3 times in the past hour`,
-      actionFn: () => "Send a follow-up while they are engaged",
-    },
-    {
-      signalType: "linkedin_view",
-      descFn: (l) => `${l.firstName} viewed your LinkedIn profile`,
-      actionFn: () => "Send a personalized connection note",
-    },
-    {
-      signalType: "linkedin_engagement",
-      descFn: (l) => `${l.firstName} liked your recent post about supply chain AI`,
-      actionFn: () => "Comment back and start a conversation",
-    },
-    {
-      signalType: "hubspot_stage_change",
-      descFn: (l) => `${l.firstName}'s deal moved to Proposal stage`,
-      actionFn: () => "Prepare a tailored proposal deck and schedule review",
-    },
-    {
-      signalType: "marketing_signal",
-      descFn: (l) => `${l.firstName} downloaded the ROI Calculator whitepaper`,
-      actionFn: () => "Send a case study related to their use case",
-    },
-    {
-      signalType: "job_change",
-      descFn: (l) => `${l.firstName} was promoted to VP at ${l.company}`,
-      actionFn: () => "Congratulate them and reintroduce Balboa's value prop",
-    },
-    {
-      signalType: "company_growth",
-      descFn: (l) => `${l.company} expanded operations to 3 new markets`,
-      actionFn: () => "Pitch multi-region supply chain visibility",
-    },
-    {
-      signalType: "funding_round",
-      descFn: (l) => `${l.company} raised a $45M Series C round`,
-      actionFn: () => "Reach out about scaling logistics with new funding",
-    },
-    {
-      signalType: "competitor_mention",
-      descFn: (l) => `${l.firstName} mentioned evaluating project44 on LinkedIn`,
-      actionFn: () => "Send competitive battle card and request a comparison demo",
-    },
-    {
-      signalType: "website_visit",
-      descFn: (l) => `Someone from ${l.company} visited the pricing page 5 times today`,
-      actionFn: () => "Offer a personalized pricing walkthrough",
-    },
-    {
-      signalType: "email_open",
-      descFn: (l) => `${l.firstName} forwarded your proposal email internally`,
-      actionFn: () => "Ask who else should be looped in for a group demo",
-    },
-    {
-      signalType: "linkedin_engagement",
-      descFn: (l) => `${l.firstName} commented on a competitor post about visibility gaps`,
-      actionFn: () => "Engage in the thread and share Balboa's perspective",
-    },
-  ];
+interface APISignal {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  leadId: string;
+  leadName: string;
+  company: string;
+  urgency: SignalUrgency;
+  channel: "email" | "linkedin" | "call";
+  recommendedAction: string;
+  timestamp: string;
+  signalSource: string;
+}
 
-  const now = Date.now();
-  const signals: LiveSignal[] = [];
-  const usedLeadIds = new Set<string>();
+function apiSignalToLiveSignal(apiSignal: APISignal): LiveSignal {
+  // Map the API type to an existing SignalType for the type system
+  const signalType: SignalType =
+    REAL_TYPE_TO_SIGNAL_TYPE[apiSignal.type] ||
+    (apiSignal.type as SignalType) ||
+    "email_open";
 
-  for (let i = 0; i < Math.min(signalTemplates.length, Math.max(8, leads.length)); i++) {
-    const template = signalTemplates[i % signalTemplates.length];
-    const lead = leads[i % leads.length];
-    const meta = SIGNAL_TYPE_META[template.signalType];
-
-    if (usedLeadIds.has(lead.id) && leads.length > signalTemplates.length) continue;
-    usedLeadIds.add(lead.id);
-
-    const minutesAgo = [3, 12, 28, 47, 90, 180, 360, 720, 1440, 2880, 4320, 5760][i] || 60;
-
-    signals.push({
-      id: `sig-${i + 1}`,
-      leadId: lead.id,
-      leadName: `${lead.firstName} ${lead.lastName}`,
-      company: lead.company,
-      signalType: template.signalType,
-      description: template.descFn(lead),
-      urgency: meta.defaultUrgency,
-      channel: meta.defaultChannel === "email" ? "email" : "linkedin",
-      recommendedAction: template.actionFn(lead),
-      recommendedChannel: meta.defaultChannel,
-      timestamp: new Date(now - minutesAgo * 60 * 1000).toISOString(),
-    });
-  }
-
-  return signals;
+  return {
+    id: apiSignal.id,
+    leadId: apiSignal.leadId,
+    leadName: apiSignal.leadName,
+    company: apiSignal.company,
+    signalType,
+    description: apiSignal.description,
+    urgency: apiSignal.urgency,
+    channel: apiSignal.channel,
+    recommendedAction: apiSignal.recommendedAction,
+    recommendedChannel: apiSignal.channel === "call" ? "email" : apiSignal.channel,
+    timestamp: apiSignal.timestamp,
+    // Store the real type as a custom field so we can display the correct label
+    // We attach it to the object even though it's not in the LiveSignal interface
+    // The rendering code uses string-based lookup so this works fine
+    ...(({ _realType: apiSignal.type }) as Record<string, string>),
+  };
 }
 
 // ─── Component ────────────────────────────────────────────────
@@ -154,11 +124,49 @@ export default function SignalEngine({
   onNavigateToLead,
   onGenerateMessage,
 }: SignalEngineProps) {
-  const [signals, setSignals] = useState<LiveSignal[]>(() => generateMockSignals(leads));
-  const [filterType, setFilterType] = useState<SignalType | "all">("all");
+  const [signals, setSignals] = useState<LiveSignal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<string>("all");
   const [filterUrgency, setFilterUrgency] = useState<SignalUrgency | "all">("all");
   const [filterChannel, setFilterChannel] = useState<"email" | "linkedin" | "call" | "all">("all");
   const [snoozeMenuId, setSnoozeMenuId] = useState<string | null>(null);
+
+  // ── Fetch signals from API ─────────────────────
+  const fetchSignals = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/signals/generate");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to load signals (${res.status})`);
+      }
+      const data = await res.json();
+      const apiSignals: APISignal[] = data.signals || [];
+      setSignals(apiSignals.map(apiSignalToLiveSignal));
+    } catch (err) {
+      console.error("[SignalEngine] Error fetching signals:", err);
+      setError(err instanceof Error ? err.message : "Failed to load signals");
+      setSignals([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSignals();
+  }, [fetchSignals]);
+
+  // ── Determine which real signal types are present for filter dropdown ──
+  const activeSignalTypes = useMemo(() => {
+    const types = new Set<string>();
+    for (const s of signals) {
+      const realType = (s as LiveSignal & { _realType?: string })._realType || s.signalType;
+      types.add(realType);
+    }
+    return Array.from(types);
+  }, [signals]);
 
   // ── Stats ─────────────────────
   const stats = useMemo(() => {
@@ -181,7 +189,10 @@ export default function SignalEngine({
   const filteredSignals = useMemo(() => {
     return signals.filter((s) => {
       if (s.snoozedUntil && new Date(s.snoozedUntil) > new Date()) return false;
-      if (filterType !== "all" && s.signalType !== filterType) return false;
+      if (filterType !== "all") {
+        const realType = (s as LiveSignal & { _realType?: string })._realType || s.signalType;
+        if (realType !== filterType) return false;
+      }
       if (filterUrgency !== "all" && s.urgency !== filterUrgency) return false;
       if (filterChannel !== "all" && s.channel !== filterChannel) return false;
       return true;
@@ -230,416 +241,532 @@ export default function SignalEngine({
     low: "Low Priority",
   };
 
-  const allSignalTypes: SignalType[] = [
-    "email_open", "linkedin_view", "linkedin_engagement", "hubspot_stage_change",
-    "marketing_signal", "job_change", "company_growth", "funding_round",
-    "competitor_mention", "website_visit",
-  ];
-
   return (
     <div style={{ padding: "24px 32px" }}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1e2a5e", marginBottom: 4 }}>
-          Signal Engine
-        </h2>
-        <p style={{ fontSize: 13, color: "#868e96" }}>
-          Real-time buying signals across all channels. Act on the right signals at the right time.
-        </p>
-      </div>
-
-      {/* Stats Bar */}
-      <div
-        style={{
-          display: "flex",
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        {[
-          { label: "Active Signals", value: stats.totalActive, color: "#3b5bdb" },
-          { label: "Acted On Today", value: stats.actedOnToday, color: "#2b8a3e" },
-          { label: "Response Rate", value: `${stats.responseRate}%`, color: "#f59f00" },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            style={{
-              flex: 1,
-              background: "white",
-              borderRadius: 12,
-              padding: "16px 20px",
-              border: "1px solid #f1f3f5",
-            }}
-          >
-            <div style={{ fontSize: 11, color: "#868e96", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-              {stat.label}
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: stat.color }}>
-              {stat.value}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          marginBottom: 20,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#1e2a5e" }}>Filters:</span>
-
-        {/* Signal Type */}
-        <select
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value as SignalType | "all")}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1e2a5e", marginBottom: 4 }}>
+            Signal Engine
+          </h2>
+          <p style={{ fontSize: 13, color: "#868e96" }}>
+            Real-time signals computed from your pipeline data. Act on the right signals at the right time.
+          </p>
+        </div>
+        <button
+          onClick={fetchSignals}
+          disabled={loading}
           style={{
             fontSize: 12,
-            padding: "6px 10px",
+            fontWeight: 600,
+            padding: "8px 16px",
             borderRadius: 8,
             border: "1px solid #f1f3f5",
-            background: "white",
-            color: "#1e2a5e",
-            cursor: "pointer",
+            background: loading ? "#f8f9fa" : "white",
+            color: loading ? "#868e96" : "#3b5bdb",
+            cursor: loading ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            transition: "all 0.15s ease",
+            flexShrink: 0,
           }}
         >
-          <option value="all">All Signal Types</option>
-          {allSignalTypes.map((t) => (
-            <option key={t} value={t}>
-              {SIGNAL_TYPE_META[t].icon} {SIGNAL_TYPE_META[t].label}
-            </option>
-          ))}
-        </select>
-
-        {/* Urgency */}
-        <select
-          value={filterUrgency}
-          onChange={(e) => setFilterUrgency(e.target.value as SignalUrgency | "all")}
-          style={{
-            fontSize: 12,
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid #f1f3f5",
-            background: "white",
-            color: "#1e2a5e",
-            cursor: "pointer",
-          }}
-        >
-          <option value="all">All Urgencies</option>
-          {urgencyOrder.map((u) => (
-            <option key={u} value={u}>{urgencyLabels[u]}</option>
-          ))}
-        </select>
-
-        {/* Channel */}
-        <select
-          value={filterChannel}
-          onChange={(e) => setFilterChannel(e.target.value as "email" | "linkedin" | "call" | "all")}
-          style={{
-            fontSize: 12,
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid #f1f3f5",
-            background: "white",
-            color: "#1e2a5e",
-            cursor: "pointer",
-          }}
-        >
-          <option value="all">All Channels</option>
-          <option value="email">Email</option>
-          <option value="linkedin">LinkedIn</option>
-          <option value="call">Call</option>
-        </select>
-      </div>
-
-      {/* Signals grouped by urgency */}
-      {urgencyOrder.map((urgency) => {
-        const group = grouped[urgency];
-        if (group.length === 0) return null;
-        const color = URGENCY_COLORS[urgency];
-
-        return (
-          <div key={urgency} style={{ marginBottom: 28 }}>
-            {/* Group header */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          {loading ? (
+            <>
               <span
                 style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  background: color,
                   display: "inline-block",
+                  width: 14,
+                  height: 14,
+                  border: "2px solid #dee2e6",
+                  borderTopColor: "#3b5bdb",
+                  borderRadius: "50%",
+                  animation: "spin 0.8s linear infinite",
                 }}
               />
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#1e2a5e", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                {urgencyLabels[urgency]}
-              </span>
-              <span
+              Loading...
+            </>
+          ) : (
+            <>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+              </svg>
+              Refresh
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Spinner keyframe (injected once) */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* Error state */}
+      {error && (
+        <div
+          style={{
+            background: "#fff5f5",
+            border: "1px solid #ffc9c9",
+            borderRadius: 12,
+            padding: "12px 16px",
+            marginBottom: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span style={{ color: "#e03131", fontWeight: 600, fontSize: 13 }}>Error:</span>
+          <span style={{ color: "#c92a2a", fontSize: 13 }}>{error}</span>
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {loading && signals.length === 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              style={{
+                background: "white",
+                borderRadius: 12,
+                padding: 20,
+                border: "1px solid #f1f3f5",
+                animation: "pulse 1.5s ease-in-out infinite",
+              }}
+            >
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "#f1f3f5" }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ width: "60%", height: 12, background: "#f1f3f5", borderRadius: 4, marginBottom: 8 }} />
+                  <div style={{ width: "40%", height: 10, background: "#f8f9fa", borderRadius: 4 }} />
+                </div>
+              </div>
+            </div>
+          ))}
+          <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
+        </div>
+      )}
+
+      {/* Main content (show when not in initial loading) */}
+      {(!loading || signals.length > 0) && (
+        <>
+          {/* Stats Bar */}
+          <div
+            style={{
+              display: "flex",
+              gap: 16,
+              marginBottom: 24,
+            }}
+          >
+            {[
+              { label: "Active Signals", value: stats.totalActive, color: "#3b5bdb" },
+              { label: "Acted On Today", value: stats.actedOnToday, color: "#2b8a3e" },
+              { label: "Response Rate", value: `${stats.responseRate}%`, color: "#f59f00" },
+            ].map((stat) => (
+              <div
+                key={stat.label}
                 style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "white",
-                  background: color,
-                  borderRadius: 9999,
-                  padding: "2px 8px",
+                  flex: 1,
+                  background: "white",
+                  borderRadius: 12,
+                  padding: "16px 20px",
+                  border: "1px solid #f1f3f5",
                 }}
               >
-                {group.length}
-              </span>
-            </div>
+                <div style={{ fontSize: 11, color: "#868e96", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                  {stat.label}
+                </div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: stat.color }}>
+                  {stat.value}
+                </div>
+              </div>
+            ))}
+          </div>
 
-            {/* Signal cards */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {group.map((signal) => {
-                const meta = SIGNAL_TYPE_META[signal.signalType];
-                const isActed = signal.actedOn;
+          {/* Filters */}
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              marginBottom: 20,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#1e2a5e" }}>Filters:</span>
 
+            {/* Signal Type */}
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              style={{
+                fontSize: 12,
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid #f1f3f5",
+                background: "white",
+                color: "#1e2a5e",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">All Signal Types</option>
+              {activeSignalTypes.map((t) => {
+                const meta = getSignalMeta(t);
                 return (
-                  <div
-                    key={signal.id}
+                  <option key={t} value={t}>
+                    {meta.icon} {meta.label}
+                  </option>
+                );
+              })}
+            </select>
+
+            {/* Urgency */}
+            <select
+              value={filterUrgency}
+              onChange={(e) => setFilterUrgency(e.target.value as SignalUrgency | "all")}
+              style={{
+                fontSize: 12,
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid #f1f3f5",
+                background: "white",
+                color: "#1e2a5e",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">All Urgencies</option>
+              {urgencyOrder.map((u) => (
+                <option key={u} value={u}>{urgencyLabels[u]}</option>
+              ))}
+            </select>
+
+            {/* Channel */}
+            <select
+              value={filterChannel}
+              onChange={(e) => setFilterChannel(e.target.value as "email" | "linkedin" | "call" | "all")}
+              style={{
+                fontSize: 12,
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid #f1f3f5",
+                background: "white",
+                color: "#1e2a5e",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">All Channels</option>
+              <option value="email">Email</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="call">Call</option>
+            </select>
+          </div>
+
+          {/* Signals grouped by urgency */}
+          {urgencyOrder.map((urgency) => {
+            const group = grouped[urgency];
+            if (group.length === 0) return null;
+            const color = URGENCY_COLORS[urgency];
+
+            return (
+              <div key={urgency} style={{ marginBottom: 28 }}>
+                {/* Group header */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <span
                     style={{
-                      background: isActed ? "#f8f9fa" : "white",
-                      borderRadius: 12,
-                      padding: 16,
-                      border: `1px solid ${isActed ? "#f1f3f5" : color}20`,
-                      borderLeft: `4px solid ${color}`,
-                      opacity: isActed ? 0.65 : 1,
-                      transition: "all 0.2s ease",
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      background: color,
+                      display: "inline-block",
+                    }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1e2a5e", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    {urgencyLabels[urgency]}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "white",
+                      background: color,
+                      borderRadius: 9999,
+                      padding: "2px 8px",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                      {/* Icon */}
-                      <span
+                    {group.length}
+                  </span>
+                </div>
+
+                {/* Signal cards */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {group.map((signal) => {
+                    // Use the real type for display if available, fall back to signalType
+                    const realType = (signal as LiveSignal & { _realType?: string })._realType || signal.signalType;
+                    const meta = getSignalMeta(realType);
+                    const isActed = signal.actedOn;
+
+                    return (
+                      <div
+                        key={signal.id}
                         style={{
-                          fontSize: 20,
-                          width: 36,
-                          height: 36,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          borderRadius: 10,
-                          background: `${color}12`,
-                          flexShrink: 0,
+                          background: isActed ? "#f8f9fa" : "white",
+                          borderRadius: 12,
+                          padding: 16,
+                          border: `1px solid ${isActed ? "#f1f3f5" : color}20`,
+                          borderLeft: `4px solid ${color}`,
+                          opacity: isActed ? 0.65 : 1,
+                          transition: "all 0.2s ease",
                         }}
                       >
-                        {meta.icon}
-                      </span>
-
-                      {/* Content */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                          {/* Icon */}
                           <span
                             style={{
-                              fontSize: 10,
-                              fontWeight: 600,
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              background: `${color}15`,
-                              color: color,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.03em",
+                              fontSize: 20,
+                              width: 36,
+                              height: 36,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderRadius: 10,
+                              background: `${color}12`,
+                              flexShrink: 0,
                             }}
                           >
-                            {meta.label}
+                            {meta.icon}
                           </span>
-                          <span style={{ fontSize: 11, color: "#868e96" }}>
-                            {timeAgo(signal.timestamp)}
-                          </span>
-                          {signal.channel && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 500,
-                                padding: "2px 6px",
-                                borderRadius: 4,
-                                background: signal.channel === "linkedin" ? "#dbeafe" : signal.channel === "email" ? "#fef3c7" : "#f1f3f5",
-                                color: signal.channel === "linkedin" ? "#2563eb" : signal.channel === "email" ? "#d97706" : "#868e96",
-                              }}
-                            >
-                              {signal.channel}
-                            </span>
-                          )}
-                          {isActed && (
-                            <span style={{ fontSize: 10, fontWeight: 600, color: "#2b8a3e" }}>
-                              Acted
-                            </span>
-                          )}
-                        </div>
 
-                        <p style={{ fontSize: 13, color: "#1e2a5e", fontWeight: 500, marginBottom: 2 }}>
-                          {signal.description}
-                        </p>
-
-                        <p style={{ fontSize: 12, color: "#868e96", marginBottom: 8 }}>
-                          {signal.leadName} at {signal.company}
-                        </p>
-
-                        {/* Recommended action */}
-                        <div
-                          style={{
-                            background: "#f8f9fa",
-                            borderRadius: 8,
-                            padding: "8px 12px",
-                            marginBottom: 10,
-                            border: "1px solid #f1f3f5",
-                          }}
-                        >
-                          <span style={{ fontSize: 11, color: "#f59f00", fontWeight: 600 }}>
-                            Recommended:
-                          </span>{" "}
-                          <span style={{ fontSize: 12, color: "#495057" }}>
-                            {signal.recommendedAction}
-                          </span>
-                        </div>
-
-                        {/* Action buttons */}
-                        {!isActed && (
-                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                            <button
-                              onClick={() => handleActNow(signal)}
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                                padding: "6px 16px",
-                                borderRadius: 8,
-                                border: "none",
-                                background: "linear-gradient(135deg, #1e2a5e, #3b5bdb)",
-                                color: "white",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 6,
-                                transition: "all 0.15s ease",
-                              }}
-                            >
-                              Act Now
-                            </button>
-
-                            {/* Snooze */}
-                            <div style={{ position: "relative" }}>
-                              <button
-                                onClick={() =>
-                                  setSnoozeMenuId(snoozeMenuId === signal.id ? null : signal.id)
-                                }
+                          {/* Content */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                              <span
                                 style={{
-                                  fontSize: 12,
-                                  fontWeight: 500,
-                                  padding: "6px 12px",
-                                  borderRadius: 8,
-                                  border: "1px solid #f1f3f5",
-                                  background: "white",
-                                  color: "#868e96",
-                                  cursor: "pointer",
-                                  transition: "all 0.15s ease",
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  padding: "2px 8px",
+                                  borderRadius: 6,
+                                  background: `${color}15`,
+                                  color: color,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.03em",
                                 }}
                               >
-                                Snooze
-                              </button>
-
-                              {snoozeMenuId === signal.id && (
-                                <div
+                                {meta.label}
+                              </span>
+                              <span style={{ fontSize: 11, color: "#868e96" }}>
+                                {timeAgo(signal.timestamp)}
+                              </span>
+                              {signal.channel && (
+                                <span
                                   style={{
-                                    position: "absolute",
-                                    top: "100%",
-                                    left: 0,
-                                    marginTop: 4,
-                                    background: "white",
-                                    borderRadius: 10,
-                                    border: "1px solid #f1f3f5",
-                                    boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
-                                    zIndex: 50,
-                                    overflow: "hidden",
-                                    minWidth: 120,
+                                    fontSize: 10,
+                                    fontWeight: 500,
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                    background: signal.channel === "linkedin" ? "#dbeafe" : signal.channel === "email" ? "#fef3c7" : "#f1f3f5",
+                                    color: signal.channel === "linkedin" ? "#2563eb" : signal.channel === "email" ? "#d97706" : "#868e96",
                                   }}
                                 >
-                                  {[
-                                    { label: "1 hour", hours: 1 },
-                                    { label: "24 hours", hours: 24 },
-                                    { label: "1 week", hours: 168 },
-                                  ].map((opt) => (
-                                    <button
-                                      key={opt.hours}
-                                      onClick={() => handleSnooze(signal.id, opt.hours)}
-                                      style={{
-                                        display: "block",
-                                        width: "100%",
-                                        padding: "8px 14px",
-                                        fontSize: 12,
-                                        color: "#1e2a5e",
-                                        background: "transparent",
-                                        border: "none",
-                                        cursor: "pointer",
-                                        textAlign: "left",
-                                        borderBottom: "1px solid #f1f3f5",
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        (e.target as HTMLButtonElement).style.background = "#f8f9fa";
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        (e.target as HTMLButtonElement).style.background = "transparent";
-                                      }}
-                                    >
-                                      {opt.label}
-                                    </button>
-                                  ))}
-                                </div>
+                                  {signal.channel}
+                                </span>
+                              )}
+                              {isActed && (
+                                <span style={{ fontSize: 10, fontWeight: 600, color: "#2b8a3e" }}>
+                                  Acted
+                                </span>
                               )}
                             </div>
 
-                            {/* Navigate to lead */}
-                            <button
-                              onClick={() => onNavigateToLead(signal.leadId)}
+                            <p style={{ fontSize: 13, color: "#1e2a5e", fontWeight: 500, marginBottom: 2 }}>
+                              {signal.description}
+                            </p>
+
+                            <p style={{ fontSize: 12, color: "#868e96", marginBottom: 8 }}>
+                              {signal.leadName}{signal.company ? ` at ${signal.company}` : ""}
+                            </p>
+
+                            {/* Recommended action */}
+                            <div
                               style={{
-                                fontSize: 12,
-                                fontWeight: 500,
-                                padding: "6px 12px",
+                                background: "#f8f9fa",
                                 borderRadius: 8,
+                                padding: "8px 12px",
+                                marginBottom: 10,
                                 border: "1px solid #f1f3f5",
-                                background: "white",
-                                color: "#3b5bdb",
-                                cursor: "pointer",
-                                transition: "all 0.15s ease",
                               }}
                             >
-                              View Lead
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+                              <span style={{ fontSize: 11, color: "#f59f00", fontWeight: 600 }}>
+                                Recommended:
+                              </span>{" "}
+                              <span style={{ fontSize: 12, color: "#495057" }}>
+                                {signal.recommendedAction}
+                              </span>
+                            </div>
 
-      {/* Empty state */}
-      {filteredSignals.length === 0 && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: 48,
-            background: "white",
-            borderRadius: 12,
-            border: "1px solid #f1f3f5",
-          }}
-        >
-          <div style={{ fontSize: 32, marginBottom: 12 }}>
-            {"\uD83D\uDD14"}
-          </div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#1e2a5e", marginBottom: 8 }}>
-            No signals match your filters
-          </h3>
-          <p style={{ fontSize: 13, color: "#868e96" }}>
-            Try broadening your filter criteria to see more signals.
-          </p>
-        </div>
+                            {/* Action buttons */}
+                            {!isActed && (
+                              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <button
+                                  onClick={() => handleActNow(signal)}
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    padding: "6px 16px",
+                                    borderRadius: 8,
+                                    border: "none",
+                                    background: "linear-gradient(135deg, #1e2a5e, #3b5bdb)",
+                                    color: "white",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    transition: "all 0.15s ease",
+                                  }}
+                                >
+                                  Act Now
+                                </button>
+
+                                {/* Snooze */}
+                                <div style={{ position: "relative" }}>
+                                  <button
+                                    onClick={() =>
+                                      setSnoozeMenuId(snoozeMenuId === signal.id ? null : signal.id)
+                                    }
+                                    style={{
+                                      fontSize: 12,
+                                      fontWeight: 500,
+                                      padding: "6px 12px",
+                                      borderRadius: 8,
+                                      border: "1px solid #f1f3f5",
+                                      background: "white",
+                                      color: "#868e96",
+                                      cursor: "pointer",
+                                      transition: "all 0.15s ease",
+                                    }}
+                                  >
+                                    Snooze
+                                  </button>
+
+                                  {snoozeMenuId === signal.id && (
+                                    <div
+                                      style={{
+                                        position: "absolute",
+                                        top: "100%",
+                                        left: 0,
+                                        marginTop: 4,
+                                        background: "white",
+                                        borderRadius: 10,
+                                        border: "1px solid #f1f3f5",
+                                        boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+                                        zIndex: 50,
+                                        overflow: "hidden",
+                                        minWidth: 120,
+                                      }}
+                                    >
+                                      {[
+                                        { label: "1 hour", hours: 1 },
+                                        { label: "24 hours", hours: 24 },
+                                        { label: "1 week", hours: 168 },
+                                      ].map((opt) => (
+                                        <button
+                                          key={opt.hours}
+                                          onClick={() => handleSnooze(signal.id, opt.hours)}
+                                          style={{
+                                            display: "block",
+                                            width: "100%",
+                                            padding: "8px 14px",
+                                            fontSize: 12,
+                                            color: "#1e2a5e",
+                                            background: "transparent",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            textAlign: "left",
+                                            borderBottom: "1px solid #f1f3f5",
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            (e.target as HTMLButtonElement).style.background = "#f8f9fa";
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            (e.target as HTMLButtonElement).style.background = "transparent";
+                                          }}
+                                        >
+                                          {opt.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Navigate to lead */}
+                                <button
+                                  onClick={() => onNavigateToLead(signal.leadId)}
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    padding: "6px 12px",
+                                    borderRadius: 8,
+                                    border: "1px solid #f1f3f5",
+                                    background: "white",
+                                    color: "#3b5bdb",
+                                    cursor: "pointer",
+                                    transition: "all 0.15s ease",
+                                  }}
+                                >
+                                  View Lead
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Empty state */}
+          {filteredSignals.length === 0 && !loading && (
+            <div
+              style={{
+                textAlign: "center",
+                padding: 48,
+                background: "white",
+                borderRadius: 12,
+                border: "1px solid #f1f3f5",
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 12 }}>
+                {"\uD83D\uDD14"}
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#1e2a5e", marginBottom: 8 }}>
+                No active signals
+              </h3>
+              <p style={{ fontSize: 13, color: "#868e96", marginBottom: 16 }}>
+                {signals.length === 0
+                  ? "No signals detected from your pipeline data. Signals are generated from email activity, lead data, and conversation history."
+                  : "Try broadening your filter criteria to see more signals."}
+              </p>
+              <button
+                onClick={fetchSignals}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "8px 20px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "linear-gradient(135deg, #1e2a5e, #3b5bdb)",
+                  color: "white",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Refresh Signals
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

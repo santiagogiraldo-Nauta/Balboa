@@ -57,6 +57,7 @@ export default function Dashboard() {
   const [remainingConnections, setRemainingConnections] = useState<any[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [generatingForLeadId, setGeneratingForLeadId] = useState<string | null>(null);
+  const [battleCardGenerating, setBattleCardGenerating] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [dbReady, setDbReady] = useState(false);
@@ -486,36 +487,35 @@ export default function Dashboard() {
     trackEventClient({ eventCategory: "enablement", eventAction: "prep_kit_created", leadId: kit.leadId });
   };
 
-  const handleBattleCardGenerate = (leadId: string, competitor: string) => {
-    const lead = leads.find(l => l.id === leadId);
-    if (!lead) return;
-    const detectedCompetitor = competitor === "auto"
-      ? (lead.companyIntel?.techStack?.find(t =>
-          ["sap", "oracle", "blue yonder", "e2open", "fourkites", "project44", "flexport", "descartes", "coupa"].some(c => t.toLowerCase().includes(c))
-        ) || "other")
-      : competitor;
-    const displayName = detectedCompetitor.charAt(0).toUpperCase() + detectedCompetitor.slice(1);
-    const newCard: BattleCard = {
-      id: `bc-${Date.now()}`,
-      leadId,
-      competitor: "other",
-      competitorDisplayName: displayName,
-      strengths: ["Established market presence", "Existing customer integrations"],
-      weaknesses: ["Slow implementation timelines", "Limited mid-market focus"],
-      balboaDifferentiators: ["6-8 week deployment vs 6+ months", "Purpose-built for mid-market distributors", "Autonomous action on alerts, not just visibility"],
-      killerQuestions: ["How long did implementation take, and what % of features are you using?", "When an alert fires, how quickly does someone act on it?"],
-      landmines: ["Avoid direct attacks on existing investment — position Balboa as complementary"],
-      autoDetectedFrom: "companyIntel.techStack",
-      createdAt: new Date().toISOString(),
-    };
-    setLeads(prev => prev.map(l => {
-      if (l.id !== leadId) return l;
-      return { ...l, battleCards: [...(l.battleCards || []), newCard] };
-    }));
-    if (selectedLead?.id === leadId) {
-      setSelectedLead(prev => prev ? { ...prev, battleCards: [...(prev.battleCards || []), newCard] } : prev);
+  const handleBattleCardGenerate = async (leadId: string, competitor: string) => {
+    if (battleCardGenerating) return; // prevent double-clicks
+    setBattleCardGenerating(leadId);
+    try {
+      const res = await fetch("/api/generate-battle-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId, competitor: competitor || "auto" }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("Battle card generation failed:", err);
+        return;
+      }
+      const { battleCard: newCard } = await res.json();
+      if (!newCard) return;
+      setLeads(prev => prev.map(l => {
+        if (l.id !== leadId) return l;
+        return { ...l, battleCards: [...(l.battleCards || []), newCard] };
+      }));
+      if (selectedLead?.id === leadId) {
+        setSelectedLead(prev => prev ? { ...prev, battleCards: [...(prev.battleCards || []), newCard] } : prev);
+      }
+      trackEventClient({ eventCategory: "enablement", eventAction: "battle_card_created", leadId });
+    } catch (error) {
+      console.error("Battle card generation error:", error);
+    } finally {
+      setBattleCardGenerating(null);
     }
-    trackEventClient({ eventCategory: "enablement", eventAction: "battle_card_created", leadId });
   };
 
   // Add quick note to lead timeline
@@ -1154,6 +1154,7 @@ export default function Dashboard() {
               onGenerateMessage={generateMessage}
               onUpdateDraftStatus={updateDraftStatus}
               onBattleCardGenerate={handleBattleCardGenerate}
+              battleCardGenerating={battleCardGenerating}
               onCopyMessage={copyToClipboard}
               onOpenEmailPopup={(prefill) => { if (prefill) setPopupPrefill(prefill); setShowEmailPopup(true); }}
               onOpenLinkedInPopup={(prefill) => { if (prefill) setPopupPrefill(prefill as { body?: string; draftId?: string }); setShowLinkedInPopup(true); }}
@@ -1264,6 +1265,7 @@ export default function Dashboard() {
               onGenerateMessage={generateMessage}
               onUpdateDraftStatus={updateDraftStatus}
               onBattleCardGenerate={handleBattleCardGenerate}
+              battleCardGenerating={battleCardGenerating}
               onOpenEmailPopup={(prefill) => { if (prefill) setPopupPrefill(prefill); setShowEmailPopup(true); }}
               onOpenLinkedInPopup={(prefill) => { if (prefill) setPopupPrefill(prefill as { body?: string; draftId?: string }); setShowLinkedInPopup(true); }}
               onOpenProposalPopup={() => setShowProposalPopup(true)}

@@ -129,6 +129,7 @@ interface LeadContextPanelProps {
   onGenerateMessage: (lead: Lead, type: string, channel?: "email" | "linkedin") => void;
   onUpdateDraftStatus: (leadId: string, draftId: string, status: DraftMessage["status"]) => void;
   onBattleCardGenerate: (leadId: string, competitor: string) => void;
+  battleCardGenerating?: string | null;
   onCopyMessage: (text: string) => void;
   onOpenEmailPopup: (prefill?: { subject?: string; body?: string; draftId?: string }) => void;
   onOpenLinkedInPopup: (prefill?: { body?: string; draftId?: string }) => void;
@@ -159,6 +160,7 @@ export default function LeadContextPanel({
   onGenerateMessage,
   onUpdateDraftStatus,
   onBattleCardGenerate,
+  battleCardGenerating,
   onCopyMessage,
   onOpenEmailPopup,
   onOpenLinkedInPopup,
@@ -870,6 +872,7 @@ export default function LeadContextPanel({
             lead={lead}
             cards={lead.battleCards || []}
             onGenerate={(competitor) => onBattleCardGenerate(lead.id, competitor)}
+            loading={battleCardGenerating === lead.id}
           />
         </>
       )}

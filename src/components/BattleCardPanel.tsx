@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, ChevronDown, Plus, AlertTriangle, Crosshair, Swords, Target, HelpCircle, Zap } from "lucide-react";
+import { Shield, ChevronDown, Plus, AlertTriangle, Crosshair, Swords, Target, HelpCircle, Zap, Loader2 } from "lucide-react";
 import type { BattleCard, Lead } from "@/lib/types";
 
 interface BattleCardPanelProps {
   lead: Lead;
   cards: BattleCard[];
   onGenerate: (competitor: string) => void;
+  loading?: boolean;
 }
 
 const competitorDisplayNames: Record<string, string> = {
@@ -16,7 +17,7 @@ const competitorDisplayNames: Record<string, string> = {
   coupa: "Coupa", other: "Other",
 };
 
-export default function BattleCardPanel({ lead, cards, onGenerate }: BattleCardPanelProps) {
+export default function BattleCardPanel({ lead, cards, onGenerate, loading }: BattleCardPanelProps) {
   const [selectedCard, setSelectedCard] = useState<string | null>(cards.length > 0 ? cards[0].id : null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["strengths", "balboa"]));
 
@@ -31,7 +32,8 @@ export default function BattleCardPanel({ lead, cards, onGenerate }: BattleCardP
 
   const activeCard = cards.find(c => c.id === selectedCard);
 
-  if (cards.length === 0) return null;
+  // Show loading state even when there are no cards yet
+  if (cards.length === 0 && !loading) return null;
 
   const sections = activeCard ? [
     { key: "strengths", label: "THEIR STRENGTHS", items: activeCard.strengths, className: "battle-section-strength", icon: Swords },
@@ -46,25 +48,54 @@ export default function BattleCardPanel({ lead, cards, onGenerate }: BattleCardP
         <h4 className="text-xs font-semibold flex items-center gap-1" style={{ color: "var(--balboa-text-secondary)" }}>
           <Shield className="w-3.5 h-3.5" style={{ color: "var(--balboa-navy)" }} /> Battle Cards
         </h4>
-        <button onClick={() => onGenerate("auto")} className="btn-ghost text-[10px]">
-          <Plus className="w-3 h-3" /> Generate
+        <button
+          onClick={() => onGenerate("auto")}
+          className="btn-ghost text-[10px]"
+          disabled={!!loading}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-3 h-3 animate-spin" /> Generating...
+            </>
+          ) : (
+            <>
+              <Plus className="w-3 h-3" /> Generate
+            </>
+          )}
         </button>
       </div>
 
+      {/* Loading skeleton */}
+      {loading && cards.length === 0 && (
+        <div className="battle-card fade-in" style={{ padding: 20, textAlign: "center" }}>
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--balboa-blue)", margin: "0 auto 8px" }} />
+          <p style={{ fontSize: 12, color: "var(--balboa-text-muted)" }}>
+            Generating AI battle card...
+          </p>
+        </div>
+      )}
+
       {/* Competitor pills */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}>
-        {cards.map((card) => (
-          <button
-            key={card.id}
-            onClick={() => setSelectedCard(card.id)}
-            className="lang-pill"
-            style={selectedCard === card.id ? { background: "var(--balboa-navy)", color: "white", borderColor: "var(--balboa-navy)" } : {}}
-          >
-            <Crosshair className="w-3 h-3" />
-            {card.competitorDisplayName}
-          </button>
-        ))}
-      </div>
+      {cards.length > 0 && (
+        <div style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}>
+          {cards.map((card) => (
+            <button
+              key={card.id}
+              onClick={() => setSelectedCard(card.id)}
+              className="lang-pill"
+              style={selectedCard === card.id ? { background: "var(--balboa-navy)", color: "white", borderColor: "var(--balboa-navy)" } : {}}
+            >
+              <Crosshair className="w-3 h-3" />
+              {card.competitorDisplayName}
+            </button>
+          ))}
+          {loading && (
+            <span className="lang-pill" style={{ opacity: 0.6, cursor: "default" }}>
+              <Loader2 className="w-3 h-3 animate-spin" />
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Active card */}
       {activeCard && (
@@ -119,7 +150,7 @@ export default function BattleCardPanel({ lead, cards, onGenerate }: BattleCardP
                 </div>
                 <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                   {activeCard.landmines.map((lm, i) => (
-                    <li key={i} style={{ fontSize: 12, color: "#78350f", marginBottom: 4 }}>⚠️ {lm}</li>
+                    <li key={i} style={{ fontSize: 12, color: "#78350f", marginBottom: 4 }}>&#x26A0;&#xFE0F; {lm}</li>
                   ))}
                 </ul>
               </div>
