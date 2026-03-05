@@ -12,16 +12,28 @@ const URGENCY_COLORS: Record<SignalUrgency, string> = {
   low: "#868e96",
 };
 
-// Extended meta map that covers both legacy SignalType values and the new real signal types.
-// The component uses string keys for lookup so it works with both old and new types.
+// Extended meta map covering touchpoint event_types, computed signal types, and legacy types.
 const SIGNAL_META: Record<string, { icon: string; label: string }> = {
-  // Real signal types from the API
+  // ── Touchpoint event_type values (real DB data) ──
+  replied: { icon: "\u2709\uFE0F", label: "Reply Received" },
+  call_completed: { icon: "\uD83D\uDCDE", label: "Call Completed" },
+  connection_accepted: { icon: "\uD83D\uDD17", label: "Connection Accepted" },
+  meeting_booked: { icon: "\uD83D\uDCC5", label: "Meeting Booked" },
+  email_sent: { icon: "\uD83D\uDCE4", label: "Email Sent" },
+  email_opened: { icon: "\uD83D\uDC41", label: "Email Opened" },
+  email_clicked: { icon: "\uD83D\uDD17", label: "Link Clicked" },
+  email_bounced: { icon: "\u26A0\uFE0F", label: "Email Bounced" },
+  linkedin_message: { icon: "\uD83D\uDCAC", label: "LinkedIn Message" },
+  linkedin_invite_sent: { icon: "\uD83D\uDCE8", label: "Invite Sent" },
+  note_added: { icon: "\uD83D\uDCDD", label: "Note Added" },
+  stage_changed: { icon: "\uD83D\uDD04", label: "Stage Changed" },
+  // ── Computed signal types from /api/signals/generate ──
   email_reply_needed: { icon: "\u2709\uFE0F", label: "Reply Needed" },
   follow_up_needed: { icon: "\uD83D\uDD04", label: "Follow Up" },
   active_negotiation: { icon: "\uD83D\uDCE3", label: "Active Thread" },
   new_lead_no_outreach: { icon: "\uD83C\uDF10", label: "New Lead" },
   scheduled_action: { icon: "\uD83D\uDCBC", label: "Scheduled Action" },
-  // Legacy types (kept for backward compatibility)
+  // ── Legacy SignalType values (backward compat) ──
   email_open: { icon: "\u2709\uFE0F", label: "Email Open" },
   linkedin_view: { icon: "\uD83D\uDC41", label: "LinkedIn View" },
   linkedin_engagement: { icon: "\uD83D\uDC4D", label: "LinkedIn Engagement" },
@@ -36,13 +48,27 @@ const SIGNAL_META: Record<string, { icon: string; label: string }> = {
 
 const DEFAULT_META = { icon: "\uD83D\uDCCC", label: "Signal" };
 
-// Map from real API signal types to closest existing SignalType for TypeScript
+// Map from real event types to closest existing SignalType for TypeScript compatibility
 const REAL_TYPE_TO_SIGNAL_TYPE: Record<string, SignalType> = {
+  // Computed signal types
   email_reply_needed: "email_open",
   follow_up_needed: "hubspot_stage_change",
   active_negotiation: "marketing_signal",
   new_lead_no_outreach: "website_visit",
   scheduled_action: "job_change",
+  // Touchpoint event_type values
+  replied: "email_open",
+  call_completed: "marketing_signal",
+  connection_accepted: "linkedin_engagement",
+  meeting_booked: "job_change",
+  email_sent: "email_open",
+  email_opened: "email_open",
+  email_clicked: "website_visit",
+  email_bounced: "email_open",
+  linkedin_message: "linkedin_engagement",
+  linkedin_invite_sent: "linkedin_view",
+  note_added: "marketing_signal",
+  stage_changed: "hubspot_stage_change",
 };
 
 function getSignalMeta(signalType: string): { icon: string; label: string } {
@@ -111,6 +137,163 @@ function apiSignalToLiveSignal(apiSignal: APISignal): LiveSignal {
   };
 }
 
+// ─── Touchpoint event type (from /api/touchpoints) ───────────
+
+interface TouchpointEvent {
+  id: string;
+  user_id: string;
+  lead_id: string | null;
+  source: string;
+  channel: string;
+  event_type: string;
+  direction: string | null;
+  subject: string | null;
+  body_preview: string | null;
+  metadata: Record<string, unknown>;
+  sentiment: string | null;
+  created_at: string;
+  lead_name: string | null;
+  lead_company: string | null;
+}
+
+// Channel icon for the source badge
+const CHANNEL_ICONS: Record<string, string> = {
+  email: "\u2709\uFE0F",
+  linkedin: "\uD83D\uDCAC",
+  call: "\uD83D\uDCDE",
+  sms: "\uD83D\uDCF1",
+};
+
+/** Determine urgency from a touchpoint event */
+function touchpointUrgency(tp: TouchpointEvent): SignalUrgency {
+  const eventType = tp.event_type;
+  const sentiment = tp.sentiment;
+
+  // Positive replies and meetings are immediate
+  if (eventType === "replied" && sentiment === "positive") return "immediate";
+  if (eventType === "meeting_booked") return "immediate";
+
+  // Any reply, calls > 2 min, connections accepted are high
+  if (eventType === "replied") return "high";
+  if (eventType === "call_completed") {
+    const duration = (tp.metadata?.duration as number) || 0;
+    return duration > 120 ? "high" : "medium";
+  }
+  if (eventType === "connection_accepted") return "high";
+
+  // Bounces warrant attention
+  if (eventType === "email_bounced") return "high";
+
+  // Opens, clicks, sent are medium
+  if (eventType === "email_opened" || eventType === "email_clicked") return "medium";
+  if (eventType === "stage_changed") return "medium";
+
+  // Everything else is low
+  return "low";
+}
+
+/** Build a human-readable description from a touchpoint event */
+function touchpointDescription(tp: TouchpointEvent): string {
+  const name = tp.lead_name || "Unknown contact";
+  const via = tp.source ? ` via ${tp.source}` : "";
+
+  switch (tp.event_type) {
+    case "replied": {
+      const tone = tp.sentiment ? ` (${tp.sentiment})` : "";
+      const subj = tp.subject ? ` on "${tp.subject}"` : "";
+      return `${name} replied${subj}${tone}${via}`;
+    }
+    case "call_completed": {
+      const dur = (tp.metadata?.duration as number) || 0;
+      const mins = Math.round(dur / 60);
+      return `${mins} min call with ${name}${via}`;
+    }
+    case "connection_accepted":
+      return `${name} accepted your LinkedIn connection request`;
+    case "meeting_booked":
+      return `Meeting booked with ${name}${via}`;
+    case "email_sent":
+      return `Email sent to ${name}${tp.subject ? `: "${tp.subject}"` : ""}${via}`;
+    case "email_opened":
+      return `${name} opened your email${tp.subject ? ` "${tp.subject}"` : ""}${via}`;
+    case "email_clicked":
+      return `${name} clicked a link in your email${via}`;
+    case "email_bounced":
+      return `Email to ${name} bounced${tp.subject ? ` ("${tp.subject}")` : ""}${via}`;
+    case "linkedin_message":
+      return `LinkedIn message ${tp.direction === "inbound" ? "from" : "to"} ${name}`;
+    case "linkedin_invite_sent":
+      return `LinkedIn invite sent to ${name}`;
+    case "note_added":
+      return `Note added for ${name}${via}`;
+    case "stage_changed": {
+      const stage = (tp.metadata?.new_stage as string) || "";
+      return `${name} moved to ${stage || "new stage"}${via}`;
+    }
+    default:
+      return `${tp.event_type.replace(/_/g, " ")} -- ${name}${via}`;
+  }
+}
+
+/** Build recommended next action from a touchpoint event */
+function touchpointRecommendation(tp: TouchpointEvent): string {
+  const name = tp.lead_name || "this contact";
+  switch (tp.event_type) {
+    case "replied":
+      return tp.sentiment === "positive"
+        ? `Respond to ${name}'s positive reply and push for next step`
+        : `Review and reply to ${name}`;
+    case "call_completed": {
+      const dur = (tp.metadata?.duration as number) || 0;
+      return dur > 120
+        ? `Send follow-up email to ${name} summarizing call discussion`
+        : `Log call outcome and schedule follow-up with ${name}`;
+    }
+    case "connection_accepted":
+      return `Send personalized first message to ${name} on LinkedIn`;
+    case "meeting_booked":
+      return `Prepare sales kit and review ${name}'s profile before the meeting`;
+    case "email_opened":
+      return `${name} is engaged -- consider a timely follow-up`;
+    case "email_clicked":
+      return `${name} clicked your link -- follow up while interest is hot`;
+    case "email_bounced":
+      return `Verify ${name}'s email address and find alternative contact`;
+    case "stage_changed":
+      return `Review ${name}'s new stage and adjust outreach strategy`;
+    default:
+      return `Follow up with ${name}`;
+  }
+}
+
+/** Convert a touchpoint event into a LiveSignal for display */
+function touchpointToLiveSignal(tp: TouchpointEvent): LiveSignal & { _realType: string; _source: string } {
+  const channel = (
+    tp.channel === "call" ? "call" : tp.channel === "linkedin" ? "linkedin" : "email"
+  ) as "email" | "linkedin" | "call";
+
+  const signalType: SignalType =
+    REAL_TYPE_TO_SIGNAL_TYPE[tp.event_type] ||
+    (tp.event_type as SignalType) ||
+    "email_open";
+
+  return {
+    id: `tp-${tp.id}`,
+    leadId: tp.lead_id || "",
+    leadName: tp.lead_name || "Unknown",
+    company: tp.lead_company || "",
+    signalType,
+    description: touchpointDescription(tp),
+    urgency: touchpointUrgency(tp),
+    channel,
+    recommendedAction: touchpointRecommendation(tp),
+    recommendedChannel: channel === "call" ? "email" : channel,
+    timestamp: tp.created_at,
+    _realType: tp.event_type,
+    _source: tp.source,
+  };
+}
+
 // ─── Component ────────────────────────────────────────────────
 
 interface SignalEngineProps {
@@ -132,19 +315,66 @@ export default function SignalEngine({
   const [filterChannel, setFilterChannel] = useState<"email" | "linkedin" | "call" | "all">("all");
   const [snoozeMenuId, setSnoozeMenuId] = useState<string | null>(null);
 
-  // ── Fetch signals from API ─────────────────────
+  // ── Fetch signals from touchpoints + computed signals ─────────────────────
   const fetchSignals = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/signals/generate");
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Failed to load signals (${res.status})`);
+      // Fetch real touchpoint events AND computed signals in parallel
+      const [tpRes, sigRes] = await Promise.all([
+        fetch("/api/touchpoints?limit=200"),
+        fetch("/api/signals/generate"),
+      ]);
+
+      const allSignals: LiveSignal[] = [];
+      const seenIds = new Set<string>();
+
+      // ── Primary: real touchpoint_events ──
+      if (tpRes.ok) {
+        const tpData = await tpRes.json();
+        const touchpoints: TouchpointEvent[] = tpData.touchpoints || [];
+        for (const tp of touchpoints) {
+          // Skip touchpoints without a linked lead (cannot navigate)
+          if (!tp.lead_id) continue;
+          const signal = touchpointToLiveSignal(tp);
+          if (!seenIds.has(signal.id)) {
+            seenIds.add(signal.id);
+            allSignals.push(signal);
+          }
+        }
+      } else {
+        console.warn("[SignalEngine] Touchpoints fetch failed:", tpRes.status);
       }
-      const data = await res.json();
-      const apiSignals: APISignal[] = data.signals || [];
-      setSignals(apiSignals.map(apiSignalToLiveSignal));
+
+      // ── Secondary: computed signals (email threads, stale leads, etc.) ──
+      if (sigRes.ok) {
+        const sigData = await sigRes.json();
+        const apiSignals: APISignal[] = sigData.signals || [];
+        for (const apiSig of apiSignals) {
+          const signal = apiSignalToLiveSignal(apiSig);
+          if (!seenIds.has(signal.id)) {
+            seenIds.add(signal.id);
+            allSignals.push(signal);
+          }
+        }
+      } else {
+        console.warn("[SignalEngine] Computed signals fetch failed:", sigRes.status);
+      }
+
+      if (allSignals.length === 0 && !tpRes.ok && !sigRes.ok) {
+        const tpErr = await tpRes.json().catch(() => ({}));
+        throw new Error(tpErr.error || `Failed to load signals (${tpRes.status})`);
+      }
+
+      // Sort: urgency first, then newest
+      const URGENCY_RANK: Record<string, number> = { immediate: 0, high: 1, medium: 2, low: 3 };
+      allSignals.sort((a, b) => {
+        const uDiff = (URGENCY_RANK[a.urgency] ?? 9) - (URGENCY_RANK[b.urgency] ?? 9);
+        if (uDiff !== 0) return uDiff;
+        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      });
+
+      setSignals(allSignals);
     } catch (err) {
       console.error("[SignalEngine] Error fetching signals:", err);
       setError(err instanceof Error ? err.message : "Failed to load signals");
@@ -583,6 +813,25 @@ export default function SignalEngine({
 
                             <p style={{ fontSize: 12, color: "#868e96", marginBottom: 8 }}>
                               {signal.leadName}{signal.company ? ` at ${signal.company}` : ""}
+                              {(() => {
+                                const src = (signal as LiveSignal & { _source?: string })._source;
+                                if (!src) return null;
+                                return (
+                                  <span
+                                    style={{
+                                      marginLeft: 8,
+                                      fontSize: 10,
+                                      fontWeight: 500,
+                                      padding: "1px 6px",
+                                      borderRadius: 4,
+                                      background: "#f1f3f5",
+                                      color: "#868e96",
+                                    }}
+                                  >
+                                    via {src}
+                                  </span>
+                                );
+                              })()}
                             </p>
 
                             {/* Recommended action */}
@@ -745,7 +994,7 @@ export default function SignalEngine({
               </h3>
               <p style={{ fontSize: 13, color: "#868e96", marginBottom: 16 }}>
                 {signals.length === 0
-                  ? "No signals detected from your pipeline data. Signals are generated from email activity, lead data, and conversation history."
+                  ? "No signals detected. Signals are generated from touchpoint events (emails, calls, LinkedIn activity) and pipeline data."
                   : "Try broadening your filter criteria to see more signals."}
               </p>
               <button
