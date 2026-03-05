@@ -809,15 +809,23 @@ export default function Dashboard() {
   };
 
   // Inline message generation (used from Today / Follow-ups / LinkedIn Queue cards)
-  const generateMessageInline = async (lead: Lead, type: string) => {
+  const generateMessageInline = async (lead: Lead, type: string, channel?: string) => {
     setGeneratingForLeadId(lead.id);
     try {
       const resp = await fetch("/api/generate-message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lead, messageType: type, language: contentLanguage }),
+        body: JSON.stringify({ lead, messageType: type, language: contentLanguage, channel }),
       });
       const data = await resp.json();
+      if (!resp.ok || data.error) {
+        const errMsg = data.error || `API error (${resp.status})`;
+        console.error("Message generation failed:", errMsg);
+        setToastMessage(errMsg.includes("credit balance") ? "AI credits exhausted — please top up your Anthropic account" : "Failed to generate message");
+        setTimeout(() => setToastMessage(null), 4000);
+        setGeneratingForLeadId(null);
+        return;
+      }
       if (data.message) {
         const updatedLead = { ...lead, draftMessages: [...lead.draftMessages, data.message] };
         setLeads(prev => prev.map(l =>
@@ -827,9 +835,13 @@ export default function Dashboard() {
           setSelectedLead(updatedLead);
         }
         persistLead(updatedLead);
+        setToastMessage("Draft generated!");
+        setTimeout(() => setToastMessage(null), 2500);
       }
     } catch (err) {
       console.error("Inline message generation error:", err);
+      setToastMessage("Failed to generate message — check your connection");
+      setTimeout(() => setToastMessage(null), 4000);
     }
     setGeneratingForLeadId(null);
   };
