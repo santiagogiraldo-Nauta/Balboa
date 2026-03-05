@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const mode = searchParams.get("mode") || (isLegacyFullSync ? "full" : "recent");
     const isFullMode = mode === "full";
 
-    const defaultMaxResults = isFullMode ? 500 : 200;
+    const defaultMaxResults = isFullMode ? 100 : 200;
     const defaultQuery = isFullMode ? "newer_than:180d" : "newer_than:90d";
 
     const maxResults = parseInt(

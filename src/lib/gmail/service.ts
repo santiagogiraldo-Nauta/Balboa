@@ -107,9 +107,10 @@ export async function fetchGmailThreads(
 
   if (!listData.threads || listData.threads.length === 0) return [];
 
-  // 2. Fetch each thread's metadata in batches of 10
+  // 2. Fetch each thread's metadata in batches of 5 (rate-limit safe)
   const threads: ParsedGmailThread[] = [];
-  const batchSize = 10;
+  const batchSize = 5;
+  const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   for (let i = 0; i < listData.threads.length; i += batchSize) {
     const batch = listData.threads.slice(i, i + batchSize);
@@ -132,6 +133,11 @@ export async function fetchGmailThreads(
     for (const thread of batchResults) {
       if (!thread?.messages) continue;
       threads.push(parseGmailThread(thread));
+    }
+
+    // Rate-limit: small delay between batches to avoid quota exhaustion
+    if (i + batchSize < listData.threads.length) {
+      await delay(200);
     }
   }
 
@@ -175,6 +181,8 @@ export async function fetchGmailThreadsPaginated(
   let pageToken: string | undefined = startPageToken;
   let pagesProcessed = 0;
 
+  const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
   while (pagesProcessed < maxPages) {
     // List thread IDs for this page
     const { data: listData } = await gmail.users.threads.list({
@@ -186,8 +194,8 @@ export async function fetchGmailThreadsPaginated(
 
     if (!listData.threads || listData.threads.length === 0) break;
 
-    // Fetch metadata for each thread in batches of 10
-    const batchSize = 10;
+    // Fetch metadata for each thread in batches of 5 (rate-limit safe)
+    const batchSize = 5;
     for (let i = 0; i < listData.threads.length; i += batchSize) {
       const batch = listData.threads.slice(i, i + batchSize);
       const batchResults = await Promise.all(
@@ -210,6 +218,11 @@ export async function fetchGmailThreadsPaginated(
         if (!thread?.messages) continue;
         allThreads.push(parseGmailThread(thread));
       }
+
+      // Rate-limit: small delay between batches to avoid quota exhaustion
+      if (i + batchSize < listData.threads.length) {
+        await delay(200);
+      }
     }
 
     pagesProcessed++;
@@ -217,6 +230,9 @@ export async function fetchGmailThreadsPaginated(
 
     // No more pages available
     if (!pageToken) break;
+
+    // Delay between pages to respect Gmail API quota
+    await delay(1000);
   }
 
   return {
