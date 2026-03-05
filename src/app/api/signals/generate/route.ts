@@ -376,6 +376,125 @@ export async function GET() {
       }
     }
 
+    // ── Signal 6: Touchpoint events from integrations ────────────
+
+    try {
+      const { data: recentTouchpoints } = await supabase
+        .from("touchpoint_events")
+        .select("id, lead_id, source, channel, event_type, direction, sentiment, metadata, created_at")
+        .eq("user_id", user.id)
+        .gte("created_at", sevenDaysAgo)
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (recentTouchpoints && recentTouchpoints.length > 0) {
+        // Get lead info for touchpoint leads
+        const tpLeadIds = [...new Set(recentTouchpoints.filter(t => t.lead_id).map(t => t.lead_id as string))];
+        if (tpLeadIds.length > 0) {
+          const { data: tpLeads } = await supabase
+            .from("leads")
+            .select("id, first_name, last_name, company")
+            .in("id", tpLeadIds);
+          for (const lead of tpLeads || []) {
+            if (!leadLookup[lead.id as string]) {
+              leadLookup[lead.id as string] = {
+                firstName: lead.first_name as string,
+                lastName: lead.last_name as string,
+                company: lead.company as string,
+                tier: "warm",
+              };
+            }
+          }
+        }
+
+        for (const tp of recentTouchpoints) {
+          const leadId = tp.lead_id as string;
+          const lead = leadId ? leadLookup[leadId] : null;
+          if (!lead) continue;
+
+          const leadName = `${lead.firstName} ${lead.lastName}`.trim();
+          const eventType = tp.event_type as string;
+          const source = tp.source as string;
+          const channel = tp.channel as string;
+          const sentiment = tp.sentiment as string | null;
+
+          // Only create signals for notable events
+          if (eventType === "replied" && sentiment === "positive") {
+            signalCounter++;
+            signals.push({
+              id: `sig-tp-${signalCounter}`,
+              type: "email_reply_needed" as RealSignalType,
+              title: `Positive ${channel} reply`,
+              description: `${leadName} sent a positive reply via ${source}. Follow up immediately.`,
+              leadId,
+              leadName,
+              company: lead.company,
+              urgency: "immediate",
+              channel: (channel === "call" ? "call" : channel === "linkedin" ? "linkedin" : "email") as SignalChannel,
+              recommendedAction: `Respond to ${leadName}'s positive reply and push for next step`,
+              timestamp: tp.created_at as string,
+              signalSource: "conversation_data",
+            });
+          } else if (eventType === "call_completed") {
+            const metadata = tp.metadata as Record<string, unknown> || {};
+            const duration = metadata.duration as number || 0;
+            if (duration > 120) {
+              signalCounter++;
+              signals.push({
+                id: `sig-tp-${signalCounter}`,
+                type: "active_negotiation" as RealSignalType,
+                title: "Significant call completed",
+                description: `${Math.round(duration / 60)} min call with ${leadName}. Send follow-up summary.`,
+                leadId,
+                leadName,
+                company: lead.company,
+                urgency: "high",
+                channel: "call",
+                recommendedAction: `Send follow-up email to ${leadName} summarizing call discussion`,
+                timestamp: tp.created_at as string,
+                signalSource: "conversation_data",
+              });
+            }
+          } else if (eventType === "connection_accepted") {
+            signalCounter++;
+            signals.push({
+              id: `sig-tp-${signalCounter}`,
+              type: "new_lead_no_outreach" as RealSignalType,
+              title: "LinkedIn connection accepted",
+              description: `${leadName} accepted your connection request. Send a first message.`,
+              leadId,
+              leadName,
+              company: lead.company,
+              urgency: "high",
+              channel: "linkedin",
+              recommendedAction: `Send personalized first message to ${leadName} on LinkedIn`,
+              timestamp: tp.created_at as string,
+              signalSource: "conversation_data",
+            });
+          } else if (eventType === "meeting_booked") {
+            signalCounter++;
+            signals.push({
+              id: `sig-tp-${signalCounter}`,
+              type: "scheduled_action" as RealSignalType,
+              title: "Meeting booked",
+              description: `Meeting scheduled with ${leadName}. Prepare your sales kit.`,
+              leadId,
+              leadName,
+              company: lead.company,
+              urgency: "high",
+              channel: "email",
+              recommendedAction: `Create prep kit and review ${leadName}'s profile before the meeting`,
+              timestamp: tp.created_at as string,
+              signalSource: "conversation_data",
+            });
+          }
+        }
+      }
+    } catch (tpError) {
+      console.error("[signals/generate] Touchpoint events query error:", tpError);
+      // Non-fatal: continue with existing signals
+    }
+
     // ── Sort and limit ───────────────────────────────────────────
 
     signals.sort((a, b) => {

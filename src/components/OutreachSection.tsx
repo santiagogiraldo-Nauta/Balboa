@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Layers, Calendar, Search, Cpu, TrendingUp } from "lucide-react";
+import { Send, Layers, Calendar, Search, Cpu, TrendingUp, Rocket, Upload } from "lucide-react";
 import SectionTabBar from "./SectionTabBar";
 import UnifiedOutreach from "./UnifiedOutreach";
-import SequenceBuilder from "./SequenceBuilder";
+import SequenceTracker from "./SequenceTracker";
+import RocketImport from "./RocketImport";
 import EventCommandCenter from "./EventCommandCenter";
 import ListBuilder from "./ListBuilder";
 import BDRCenter from "./BDRCenter";
@@ -12,7 +13,7 @@ import OutreachProgress from "./OutreachProgress";
 import LeadContextPanel from "./LeadContextPanel";
 import type { Lead, CommunicationThread, DraftMessage, SupportedLanguage, SalesEvent } from "@/lib/types";
 
-type OutreachTab = "compose" | "sequences" | "events" | "listbuilder" | "bdr" | "progress";
+type OutreachTab = "compose" | "sequences" | "rocket" | "events" | "listbuilder" | "bdr" | "progress";
 
 interface OutreachSectionProps {
   leads: Lead[];
@@ -50,6 +51,7 @@ interface OutreachSectionProps {
 const TABS = [
   { key: "compose" as const, label: "Compose", icon: <Send size={14} /> },
   { key: "sequences" as const, label: "Sequences", icon: <Layers size={14} /> },
+  { key: "rocket" as const, label: "Rocket", icon: <Upload size={14} /> },
   { key: "events" as const, label: "Events", icon: <Calendar size={14} /> },
   { key: "listbuilder" as const, label: "List Builder", icon: <Search size={14} /> },
   { key: "bdr" as const, label: "BDR Center", icon: <Cpu size={14} /> },
@@ -133,10 +135,13 @@ export default function OutreachSection({
       )}
 
       {activeTab === "sequences" && (
-        <SequenceBuilder
-          leads={leads}
+        <SequenceTracker
           onNavigateToLead={onNavigateToLead}
         />
+      )}
+
+      {activeTab === "rocket" && (
+        <RocketImport />
       )}
 
       {activeTab === "events" && (

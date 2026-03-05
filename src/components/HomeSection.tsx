@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { ChevronRight, MessageSquare, Mail, Send, Inbox, RefreshCw, Download } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { ChevronRight, MessageSquare, Mail, Send, Inbox, RefreshCw, Download, Phone, Linkedin, Calendar, AlertTriangle, Clock, CheckCircle2, Zap, ArrowRight, X } from "lucide-react";
 import type { Lead, Deal, SupportedLanguage, SalesEvent } from "@/lib/types";
 import SectionTabBar from "./SectionTabBar";
 import OutreachCommandCenter from "./OutreachCommandCenter";
@@ -357,6 +357,268 @@ function FollowUpCard({
   );
 }
 
+// ── Daily Command Center types ──
+
+interface DailyAction {
+  id: string;
+  lead_id: string | null;
+  action_type: string;
+  priority: string;
+  channel: string | null;
+  reason: string;
+  suggested_message: string | null;
+  status: string;
+  due_date: string | null;
+  lead_name?: string;
+  lead_company?: string;
+  lead_position?: string;
+  lead_email?: string;
+  lead_tier?: string;
+}
+
+interface DailyStats {
+  actionsCompleted: number;
+  emailsSent: number;
+  callsMade: number;
+  repliesReceived: number;
+  meetingsBooked: number;
+}
+
+// ── Daily Stats Bar ──
+
+function DailyStatsBar({ stats }: { stats: DailyStats }) {
+  const items = [
+    { label: "Completed", value: stats.actionsCompleted, icon: <CheckCircle2 size={13} style={{ color: "#059669" }} />, color: "#059669" },
+    { label: "Emails", value: stats.emailsSent, icon: <Send size={13} style={{ color: "var(--balboa-blue)" }} />, color: "var(--balboa-blue)" },
+    { label: "Calls", value: stats.callsMade, icon: <Phone size={13} style={{ color: "#d97706" }} />, color: "#d97706" },
+    { label: "Replies", value: stats.repliesReceived, icon: <Inbox size={13} style={{ color: "#059669" }} />, color: "#059669" },
+    { label: "Meetings", value: stats.meetingsBooked, icon: <Calendar size={13} style={{ color: "#8b5cf6" }} />, color: "#8b5cf6" },
+  ];
+
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(5, 1fr)",
+      gap: 8,
+      marginBottom: 16,
+    }}>
+      {items.map((item) => (
+        <div key={item.label} className="card" style={{
+          padding: "10px 8px",
+          textAlign: "center",
+        }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>{item.icon}</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "var(--balboa-navy)", lineHeight: 1, letterSpacing: "-0.02em" }}>
+            {item.value}
+          </div>
+          <div style={{ fontSize: 10, color: "var(--balboa-text-muted)", fontWeight: 500, marginTop: 3 }}>
+            {item.label}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Daily Action Card ──
+
+function DailyActionCard({
+  action,
+  onNavigate,
+  onComplete,
+  onSnooze,
+  onDismiss,
+}: {
+  action: DailyAction;
+  onNavigate: (leadId: string) => void;
+  onComplete: (actionId: string) => void;
+  onSnooze: (actionId: string) => void;
+  onDismiss: (actionId: string) => void;
+}) {
+  const priorityConfig: Record<string, { color: string; bg: string; label: string }> = {
+    urgent: { color: "#dc2626", bg: "rgba(220,38,38,0.08)", label: "Urgent" },
+    high: { color: "#d97706", bg: "rgba(217,119,6,0.08)", label: "High" },
+    medium: { color: "var(--balboa-blue)", bg: "rgba(59,91,219,0.08)", label: "Medium" },
+    low: { color: "var(--balboa-text-muted)", bg: "rgba(148,163,184,0.08)", label: "Low" },
+  };
+
+  const channelIcon: Record<string, React.ReactNode> = {
+    email: <Mail size={14} style={{ color: "var(--balboa-blue)" }} />,
+    call: <Phone size={14} style={{ color: "#d97706" }} />,
+    linkedin: <Linkedin size={14} style={{ color: "#0077b5" }} />,
+    meeting: <Calendar size={14} style={{ color: "#8b5cf6" }} />,
+  };
+
+  const actionTypeLabel: Record<string, string> = {
+    follow_up: "Follow Up",
+    first_touch: "First Touch",
+    hot_signal: "Hot Signal",
+    stale_lead: "Re-engage",
+    reply_needed: "Reply Needed",
+  };
+
+  const priority = priorityConfig[action.priority] || priorityConfig.medium;
+  const initials = action.lead_name
+    ? action.lead_name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+    : "??";
+
+  return (
+    <div
+      style={{
+        padding: "12px 16px",
+        borderBottom: "1px solid rgba(148,163,184,0.08)",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
+        cursor: action.lead_id ? "pointer" : "default",
+        transition: "background 0.1s ease",
+      }}
+      onClick={() => action.lead_id && onNavigate(action.lead_id)}
+      onMouseEnter={(e) => { if (action.lead_id) e.currentTarget.style.background = "rgba(59,91,219,0.02)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+    >
+      {/* Avatar */}
+      <div style={{
+        width: 36,
+        height: 36,
+        borderRadius: "50%",
+        background: action.priority === "urgent" ? "#dc2626" : action.priority === "high" ? "#d97706" : "var(--balboa-navy)",
+        color: "white",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 12,
+        fontWeight: 700,
+        flexShrink: 0,
+        marginTop: 2,
+      }}>
+        {initials}
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
+          {action.lead_name && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--balboa-navy)" }}>
+              {action.lead_name}
+            </span>
+          )}
+          {action.lead_company && (
+            <span style={{ fontSize: 11, color: "var(--balboa-text-muted)" }}>
+              {action.lead_company}
+            </span>
+          )}
+          <span style={{
+            fontSize: 10,
+            fontWeight: 700,
+            padding: "1px 6px",
+            borderRadius: 4,
+            background: priority.bg,
+            color: priority.color,
+            marginLeft: "auto",
+            flexShrink: 0,
+          }}>
+            {priority.label}
+          </span>
+        </div>
+
+        <div style={{ fontSize: 12, color: "var(--balboa-text-secondary)", marginBottom: 4, lineHeight: 1.4 }}>
+          {action.reason}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {action.channel && (
+            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--balboa-text-muted)" }}>
+              {channelIcon[action.channel] || null}
+              {action.channel}
+            </span>
+          )}
+          <span style={{
+            fontSize: 10,
+            padding: "1px 6px",
+            borderRadius: 4,
+            background: "rgba(30,42,94,0.04)",
+            color: "var(--balboa-text-muted)",
+            fontWeight: 600,
+          }}>
+            {actionTypeLabel[action.action_type] || action.action_type}
+          </span>
+          {action.lead_tier && (
+            <span style={{
+              fontSize: 10,
+              padding: "1px 6px",
+              borderRadius: 4,
+              background: action.lead_tier === "hot" ? "rgba(220,38,38,0.06)" : action.lead_tier === "warm" ? "rgba(217,119,6,0.06)" : "rgba(148,163,184,0.06)",
+              color: action.lead_tier === "hot" ? "#dc2626" : action.lead_tier === "warm" ? "#d97706" : "var(--balboa-text-muted)",
+              fontWeight: 600,
+            }}>
+              {action.lead_tier}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Quick actions */}
+      <div style={{ display: "flex", gap: 4, flexShrink: 0, marginTop: 2 }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); onComplete(action.id); }}
+          title="Mark complete"
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            border: "1px solid rgba(5,150,105,0.15)",
+            background: "rgba(5,150,105,0.06)",
+            color: "#059669",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <CheckCircle2 size={14} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onSnooze(action.id); }}
+          title="Snooze"
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            border: "1px solid rgba(217,119,6,0.15)",
+            background: "rgba(217,119,6,0.06)",
+            color: "#d97706",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Clock size={14} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDismiss(action.id); }}
+          title="Dismiss"
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            border: "1px solid rgba(148,163,184,0.15)",
+            background: "rgba(148,163,184,0.06)",
+            color: "var(--balboa-text-muted)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <X size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Component ──
 
 // ── Email Activity Card (shown when leads are empty or metrics available) ──
@@ -557,7 +819,50 @@ export default function HomeSection({
   const [syncingGmail, setSyncingGmail] = useState(false);
   const [importingContacts, setImportingContacts] = useState(false);
 
-  // Fetch email metrics on mount
+  // Daily Command Center state
+  const [dailyActions, setDailyActions] = useState<DailyAction[]>([]);
+  const [dailyStats, setDailyStats] = useState<DailyStats | null>(null);
+  const [dailyActionsLoading, setDailyActionsLoading] = useState(false);
+
+  // Fetch daily actions from API
+  const fetchDailyActions = useCallback(async () => {
+    setDailyActionsLoading(true);
+    try {
+      const res = await fetch("/api/daily-actions");
+      const data = await res.json();
+      if (data && !data.error) {
+        setDailyActions(data.actions || []);
+        setDailyStats(data.stats || null);
+      }
+    } catch {
+      // Silently fail — daily actions is optional
+    }
+    setDailyActionsLoading(false);
+  }, []);
+
+  // Update daily action status
+  const updateActionStatus = useCallback(async (actionId: string, status: "completed" | "snoozed" | "dismissed") => {
+    // Optimistic update
+    setDailyActions(prev => prev.filter(a => a.id !== actionId));
+
+    // For computed actions (not in DB), just remove from local state
+    if (actionId.startsWith("computed_")) return;
+
+    try {
+      await fetch("/api/daily-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionId, status }),
+      });
+      if (status === "completed") {
+        setDailyStats(prev => prev ? { ...prev, actionsCompleted: prev.actionsCompleted + 1 } : prev);
+      }
+    } catch {
+      // Silently fail
+    }
+  }, []);
+
+  // Fetch email metrics + daily actions on mount
   useEffect(() => {
     fetch("/api/gmail/metrics")
       .then((r) => r.json())
@@ -565,7 +870,8 @@ export default function HomeSection({
         if (data && !data.error) setEmailMetrics(data);
       })
       .catch(() => {});
-  }, []);
+    fetchDailyActions();
+  }, [fetchDailyActions]);
 
   // Manual sync handler
   const handleSyncGmail = async () => {
@@ -649,7 +955,7 @@ export default function HomeSection({
   }, [leads]);
 
   // ── Tab badges ──
-  const actionsBadge = totalPositive + totalFollowUp;
+  const actionsBadge = totalPositive + totalFollowUp + dailyActions.length;
 
   const followupCount = useMemo(() => {
     return leads.filter((l) => !l.disqualifyReason && l.nextStepDate).length;
@@ -760,6 +1066,58 @@ export default function HomeSection({
               Here&apos;s what needs your attention.
             </span>
           </div>
+
+          {/* ── Section 0: Daily Stats + Command Center ── */}
+          {dailyStats && (
+            <DailyStatsBar stats={dailyStats} />
+          )}
+
+          {dailyActions.length > 0 && (
+            <WorkflowSection
+              emoji="⚡"
+              title="Recommended Actions"
+              subtitle="AI-computed priorities based on all your integrations"
+              count={dailyActions.length}
+              accentColor="#3B5BDB"
+              emptyMessage="No recommended actions right now"
+            >
+              {dailyActions.slice(0, 8).map((action) => (
+                <DailyActionCard
+                  key={action.id}
+                  action={action}
+                  onNavigate={onNavigateToLead}
+                  onComplete={(id) => updateActionStatus(id, "completed")}
+                  onSnooze={(id) => updateActionStatus(id, "snoozed")}
+                  onDismiss={(id) => updateActionStatus(id, "dismissed")}
+                />
+              ))}
+              {dailyActions.length > 8 && (
+                <div style={{
+                  padding: "10px 16px",
+                  fontSize: 12,
+                  color: "var(--balboa-text-muted)",
+                  textAlign: "center",
+                  fontWeight: 500,
+                }}>
+                  +{dailyActions.length - 8} more actions
+                </div>
+              )}
+            </WorkflowSection>
+          )}
+
+          {dailyActionsLoading && dailyActions.length === 0 && (
+            <div style={{
+              padding: "16px 20px",
+              borderRadius: 10,
+              background: "rgba(59,91,219,0.03)",
+              border: "1px dashed rgba(59,91,219,0.12)",
+              textAlign: "center",
+              marginBottom: 24,
+            }}>
+              <RefreshCw size={14} style={{ color: "var(--balboa-blue)", animation: "spin 1s linear infinite", marginBottom: 4 }} />
+              <div style={{ fontSize: 12, color: "var(--balboa-text-muted)" }}>Loading recommended actions...</div>
+            </div>
+          )}
 
           {/* ── Section 1: Respond Now ── */}
           <WorkflowSection

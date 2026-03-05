@@ -49,16 +49,32 @@ export async function GET() {
       console.error("Leads query error:", leadError);
     }
 
+    // Touchpoint events (from webhooks: Amplemarket, HubSpot, Aircall, LinkedIn, etc.)
+    const { data: touchpoints, error: tpError } = await supabase
+      .from("touchpoint_events")
+      .select("id, lead_id, source, channel, event_type, direction, sentiment, created_at, metadata")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(5000);
+
+    if (tpError) {
+      console.error("Touchpoint events query error:", tpError);
+    }
+
     const allMessages = messages || [];
     const allConversations = conversations || [];
     const allLeads = leads || [];
+    const allTouchpoints = touchpoints || [];
 
     // ─── 2. Check for minimum data ─────────────────────────────────
 
-    if (allMessages.length < 10) {
+    // Include touchpoints in the total count
+    const totalDataPoints = allMessages.length + allTouchpoints.length;
+
+    if (totalDataPoints < 10) {
       return NextResponse.json({
         insufficient: true,
-        message: `You have ${allMessages.length} messages so far. Playbook Intelligence needs at least 10 messages across your outreach channels to detect meaningful patterns. Keep sending outreach and check back soon.`,
+        message: `You have ${totalDataPoints} data points so far (${allMessages.length} messages, ${allTouchpoints.length} touchpoint events). Playbook Intelligence needs at least 10 data points to detect meaningful patterns. Keep sending outreach and check back soon.`,
       });
     }
 
@@ -315,6 +331,39 @@ ${Object.entries(positionStats)
 ### Lead Pool
 Total leads: ${allLeads.length}
 Total conversations: ${allConversations.length}
+
+### Touchpoint Events (from integrations)
+Total touchpoint events: ${allTouchpoints.length}
+${(() => {
+  const tpBySource: Record<string, number> = {};
+  const tpByChannel: Record<string, number> = {};
+  const tpByType: Record<string, number> = {};
+  const tpSentiment: Record<string, number> = {};
+  for (const tp of allTouchpoints) {
+    tpBySource[tp.source] = (tpBySource[tp.source] || 0) + 1;
+    tpByChannel[tp.channel] = (tpByChannel[tp.channel] || 0) + 1;
+    tpByType[tp.event_type] = (tpByType[tp.event_type] || 0) + 1;
+    if (tp.sentiment) tpSentiment[tp.sentiment] = (tpSentiment[tp.sentiment] || 0) + 1;
+  }
+  const lines: string[] = [];
+  if (Object.keys(tpBySource).length > 0) {
+    lines.push("By source:");
+    for (const [k, v] of Object.entries(tpBySource)) lines.push("  - " + k + ": " + v);
+  }
+  if (Object.keys(tpByChannel).length > 0) {
+    lines.push("By channel:");
+    for (const [k, v] of Object.entries(tpByChannel)) lines.push("  - " + k + ": " + v);
+  }
+  if (Object.keys(tpByType).length > 0) {
+    lines.push("By event type:");
+    for (const [k, v] of Object.entries(tpByType)) lines.push("  - " + k + ": " + v);
+  }
+  if (Object.keys(tpSentiment).length > 0) {
+    lines.push("Sentiment breakdown:");
+    for (const [k, v] of Object.entries(tpSentiment)) lines.push("  - " + k + ": " + v);
+  }
+  return lines.join("\n");
+})()}
 `;
 
     const insightsPrompt = `${BALBOA_ICP_CONTEXT}
