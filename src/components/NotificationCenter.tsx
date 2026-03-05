@@ -7,6 +7,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import type { Lead } from "@/lib/types";
+import { getClientConfig } from "@/lib/config-client";
 
 // ── Local types (will move to types.ts) ─────────────────────────────────────
 
@@ -224,7 +225,8 @@ export default function NotificationCenter({ leads }: { leads: Lead[] }) {
     },
   });
 
-  const allNotifications = useMemo(() => generateMockNotifications(leads), [leads]);
+  const { isSandbox } = getClientConfig();
+  const allNotifications = useMemo(() => isSandbox ? generateMockNotifications(leads) : [], [leads, isSandbox]);
 
   // Apply read state from local state
   const notifications = useMemo(() => {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X, BookOpen, Target, Search, Settings, BarChart3, PenTool, Sparkles, CheckCircle, ChevronDown, Copy, Loader2 } from "lucide-react";
 import type { Lead, PrepKitType, SupportedLanguage, PrepKit, PrepKitSection } from "@/lib/types";
 import LanguageSelector from "./LanguageSelector";
+import { getClientConfig } from "@/lib/config-client";
 
 interface SalesPrepModalProps {
   lead: Lead;
@@ -45,6 +46,7 @@ export default function SalesPrepModal({ lead, onClose, onSave }: SalesPrepModal
   const handleGenerate = async () => {
     if (!selectedType) return;
     setLoading(true);
+    const { isSandbox } = getClientConfig();
     try {
       const resp = await fetch("/api/prep-kit", {
         method: "POST",
@@ -54,8 +56,11 @@ export default function SalesPrepModal({ lead, onClose, onSave }: SalesPrepModal
       const data = await resp.json();
       setResult({ title: data.title, sections: data.sections });
     } catch {
-      // Fallback mock
-      setResult(generateMockKit(lead, selectedType));
+      if (isSandbox) {
+        setResult(generateMockKit(lead, selectedType));
+      } else {
+        setResult({ title: "Generation failed", sections: [{ title: "Error", items: ["Could not generate prep kit. Check your API connection and try again."] }] });
+      }
     }
     setLoading(false);
     setExpandedSections(new Set([0]));

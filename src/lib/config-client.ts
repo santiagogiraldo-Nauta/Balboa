@@ -10,7 +10,7 @@ export interface ClientConfig {
 }
 
 export function getClientConfig(): ClientConfig {
-  const env = (process.env.NEXT_PUBLIC_BALBOA_ENV || "sandbox") as BalboaEnvironment;
+  const env = (process.env.NEXT_PUBLIC_BALBOA_ENV || "production") as BalboaEnvironment;
   return {
     environment: env,
     isSandbox: env === "sandbox",

@@ -5,6 +5,7 @@ import { X, Video, FileText, BarChart3, Lock, Sparkles, Copy, CheckCircle, Loade
 import type { Lead, VideoOption, SupportedLanguage, VideoPrep, SlideContent } from "@/lib/types";
 import LanguageSelector from "./LanguageSelector";
 import VideoSlidesRenderer from "./VideoSlidesRenderer";
+import { getClientConfig } from "@/lib/config-client";
 
 interface VideoPrepModalProps {
   lead: Lead;
@@ -33,6 +34,7 @@ export default function VideoPrepModal({ lead, onClose, onSave }: VideoPrepModal
   const handleGenerate = async () => {
     if (selectedOptions.size === 0) return;
     setLoading(true);
+    const { isSandbox } = getClientConfig();
     try {
       const resp = await fetch("/api/video-prep", {
         method: "POST",
@@ -43,11 +45,14 @@ export default function VideoPrepModal({ lead, onClose, onSave }: VideoPrepModal
       setResult({ script: data.script, slides: data.slides });
       if (selectedOptions.has("slides") && !selectedOptions.has("script")) setActiveResultTab("slides");
     } catch {
-      // Fallback mock
-      setResult({
-        script: selectedOptions.has("script") ? generateMockScript(lead) : undefined,
-        slides: selectedOptions.has("slides") ? generateMockSlides(lead) : undefined,
-      });
+      if (isSandbox) {
+        setResult({
+          script: selectedOptions.has("script") ? generateMockScript(lead) : undefined,
+          slides: selectedOptions.has("slides") ? generateMockSlides(lead) : undefined,
+        });
+      } else {
+        setResult({ script: "Generation failed. Check your API connection and try again." });
+      }
       if (selectedOptions.has("slides") && !selectedOptions.has("script")) setActiveResultTab("slides");
     }
     setLoading(false);

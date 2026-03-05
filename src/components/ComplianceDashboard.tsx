@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { Lead, SupportedLanguage } from "@/lib/types";
 import { CHANNEL_RATE_LIMITS } from "@/lib/compliance";
+import { getClientConfig } from "@/lib/config-client";
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -320,34 +321,56 @@ export default function ComplianceDashboard({
     },
   });
 
-  // ── Load mock data on mount ──────────────
+  const { isSandbox } = getClientConfig();
+
+  // ── Load data on mount ──────────────
   useEffect(() => {
     setLoading(true);
     const timer = setTimeout(() => {
       const totalLeads = leads.length;
-      const optedIn = Math.round(totalLeads * 0.72);
-      const optedOut = Math.round(totalLeads * 0.08);
-      const gdprConsent = Math.round(totalLeads * 0.65);
 
-      setDashboardData({
-        rateLimits: {
-          linkedinMessages: 12,
-          linkedinConnections: 8,
-          emailMessages: 45,
-          smsMessages: 3,
-        },
-        recentEvents: generateMockEvents(leads),
-        consentSummary: {
-          totalLeads,
-          optedIn,
-          optedOut,
-          gdprConsent,
-        },
-      });
+      if (isSandbox) {
+        const optedIn = Math.round(totalLeads * 0.72);
+        const optedOut = Math.round(totalLeads * 0.08);
+        const gdprConsent = Math.round(totalLeads * 0.65);
+
+        setDashboardData({
+          rateLimits: {
+            linkedinMessages: 12,
+            linkedinConnections: 8,
+            emailMessages: 45,
+            smsMessages: 3,
+          },
+          recentEvents: generateMockEvents(leads),
+          consentSummary: {
+            totalLeads,
+            optedIn,
+            optedOut,
+            gdprConsent,
+          },
+        });
+      } else {
+        // Production: show real zeros / empty until real compliance tracking is wired
+        setDashboardData({
+          rateLimits: {
+            linkedinMessages: 0,
+            linkedinConnections: 0,
+            emailMessages: 0,
+            smsMessages: 0,
+          },
+          recentEvents: [],
+          consentSummary: {
+            totalLeads,
+            optedIn: 0,
+            optedOut: 0,
+            gdprConsent: 0,
+          },
+        });
+      }
       setLoading(false);
     }, 400);
     return () => clearTimeout(timer);
-  }, [leads]);
+  }, [leads, isSandbox]);
 
   // ── Derived values ──────────────
   const complianceScore = useMemo(

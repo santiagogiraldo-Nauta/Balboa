@@ -8,6 +8,7 @@ import {
   X, Send,
 } from "lucide-react";
 import type { Lead } from "@/lib/types";
+import { getClientConfig } from "@/lib/config-client";
 
 // ── Local types (will move to types.ts) ─────────────────────────────────────
 
@@ -202,7 +203,8 @@ export default function SequenceBuilder({
   const [newSequenceName, setNewSequenceName] = useState("");
   const [newSequenceDesc, setNewSequenceDesc] = useState("");
 
-  const sequences = useMemo(() => generateMockSequences(leads), [leads]);
+  const { isSandbox } = getClientConfig();
+  const sequences = useMemo(() => isSandbox ? generateMockSequences(leads) : [], [leads, isSandbox]);
 
   const selectedSequence = sequences.find((s) => s.id === selectedSequenceId) || null;
 

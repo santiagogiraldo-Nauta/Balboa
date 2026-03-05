@@ -92,8 +92,8 @@ export default function LinkedInQueue({ leads, onNavigateToLead, onUpdateLead, o
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
   const [expandedDraft, setExpandedDraft] = useState<string | null>(null);
 
-  // Filter to LinkedIn-only leads (no email)
-  const liOnlyLeads = leads.filter(l => l.channels?.linkedin && !l.channels?.email);
+  // Filter to leads with LinkedIn presence
+  const liOnlyLeads = leads.filter(l => l.channels?.linkedin);
 
   if (liOnlyLeads.length === 0) return null;
 

@@ -69,7 +69,7 @@ export default function Dashboard() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [leadAnalysis, setLeadAnalysis] = useState<any>(null);
   const [analyzingLead, setAnalyzingLead] = useState(false);
-  const [deals] = useState(isSandbox ? mockDeals : []);
+  const [deals, setDeals] = useState(isSandbox ? mockDeals : []);
   const [accounts] = useState(isSandbox ? mockAccounts : []);
   const [showEmailPopup, setShowEmailPopup] = useState(false);
   const [showLinkedInPopup, setShowLinkedInPopup] = useState(false);
@@ -164,6 +164,39 @@ export default function Dashboard() {
           }
         } catch (dbErr) {
           console.error("Failed to load leads from DB:", dbErr);
+        }
+
+        // Load deals from API
+        try {
+          const dealsRes = await fetch("/api/deals");
+          if (dealsRes.ok) {
+            const { deals: dbDeals } = await dealsRes.json();
+            if (!didTimeout && dbDeals && dbDeals.length > 0) {
+              // Map DB deals to PipelineDeal shape
+              setDeals(dbDeals.map((d: Record<string, unknown>) => ({
+                id: d.id as string,
+                deal_name: d.deal_name as string || "Untitled Deal",
+                company_name: d.company_name as string || null,
+                amount: d.amount as number || 0,
+                deal_stage: d.deal_stage as string || "discovery",
+                probability: d.probability as number || 0,
+                deal_health: d.deal_health as string || "warm",
+                deal_owner: d.deal_owner as string || "Santiago Giraldo",
+                pipeline: d.pipeline as string || "sales",
+                contact_name: d.contact_name as string || null,
+                lead_id: d.lead_id as string || null,
+                close_date: d.close_date as string || null,
+                days_in_stage: d.days_in_stage as number || null,
+                last_activity_days: d.last_activity_days as number || null,
+                last_activity_type: d.last_activity_type as string || null,
+                next_step: d.next_step as string || null,
+                contacts_count: d.contacts_count as number || 0,
+                create_date: d.created_at as string || new Date().toISOString(),
+              })));
+            }
+          }
+        } catch (dealErr) {
+          console.error("Failed to load deals:", dealErr);
         }
         if (!didTimeout) {
           setDbReady(true);

@@ -1,18 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Radar, Users, Calendar, TrendingUp, Copy, ChevronRight,
   Globe, Briefcase, Signal, MessageSquare, Target,
   ArrowRight, MapPin, Sparkles, AlertCircle, Building,
   PenTool, Search, Lock, UserPlus, Send, RefreshCw,
-  CheckCircle, Linkedin, Zap,
+  CheckCircle, Linkedin, Zap, Loader2, WifiOff, Settings,
 } from "lucide-react";
 import type { Prospect, EventOpportunity, MarketSignal } from "@/lib/types";
-import { MOCK_PROSPECTS, MOCK_EVENTS, MOCK_SIGNALS } from "@/lib/mock-data";
+import { MOCK_EVENTS } from "@/lib/mock-data";
 import { trackEventClient } from "@/lib/tracking";
 import { getClientConfig } from "@/lib/config-client";
-import EmptyState from "./EmptyState";
 
 interface Props {
   onAddToLeads?: (prospect: Prospect) => void;
@@ -20,28 +19,74 @@ interface Props {
   onCopyMessage?: (text: string) => void;
 }
 
+type FetchStatus = "idle" | "loading" | "success" | "error" | "not_connected";
+
 export default function Prospecting({ onAddToLeads, onGenerateMessage, onCopyMessage }: Props) {
   const { isSandbox } = getClientConfig();
-  const [prospects] = useState<Prospect[]>(isSandbox ? MOCK_PROSPECTS : []);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
   const [events] = useState<EventOpportunity[]>(isSandbox ? MOCK_EVENTS : []);
-  const [signals] = useState<MarketSignal[]>(isSandbox ? MOCK_SIGNALS : []);
+  const [signals, setSignals] = useState<MarketSignal[]>([]);
+  const [prospectStatus, setProspectStatus] = useState<FetchStatus>("idle");
+  const [signalStatus, setSignalStatus] = useState<FetchStatus>("idle");
   const [subTab, setSubTab] = useState<"prospects" | "events" | "signals" | "content" | "research">("prospects");
+
+  const fetchProspects = useCallback(async () => {
+    setProspectStatus("loading");
+    try {
+      const res = await fetch("/api/discover/prospects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 15 }),
+      });
+      const data = await res.json();
+      if (data.error === "apify_not_connected") {
+        setProspectStatus("not_connected");
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || "Failed to fetch");
+      setProspects(data.prospects || []);
+      setProspectStatus("success");
+    } catch (e) {
+      console.error("[Prospecting] fetch prospects failed:", e);
+      setProspectStatus("error");
+    }
+  }, []);
+
+  const fetchSignals = useCallback(async () => {
+    setSignalStatus("loading");
+    try {
+      const res = await fetch("/api/discover/signals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.error === "apify_not_connected") {
+        setSignalStatus("not_connected");
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || "Failed to fetch");
+      setSignals(data.signals || []);
+      setSignalStatus("success");
+    } catch (e) {
+      console.error("[Prospecting] fetch signals failed:", e);
+      setSignalStatus("error");
+    }
+  }, []);
+
+  // Auto-fetch when tab is opened
+  useEffect(() => {
+    if (subTab === "prospects" && prospectStatus === "idle") {
+      fetchProspects();
+    }
+    if (subTab === "signals" && signalStatus === "idle") {
+      fetchSignals();
+    }
+  }, [subTab, prospectStatus, signalStatus, fetchProspects, fetchSignals]);
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null);
   const [generatingMessage, setGeneratingMessage] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState("");
   const [addedProspects, setAddedProspects] = useState<Set<string>>(new Set());
-
-  if (!isSandbox && prospects.length === 0 && events.length === 0 && signals.length === 0) {
-    return (
-      <div style={{ padding: "24px 32px" }}>
-        <EmptyState
-          icon={<Radar size={28} />}
-          title="No prospecting data"
-          description="Prospect intelligence, events, and market signals will populate once integrations are connected."
-        />
-      </div>
-    );
-  }
 
   const copyToClipboard = (text: string) => {
     if (onCopyMessage) onCopyMessage(text);
@@ -106,9 +151,9 @@ export default function Prospecting({ onAddToLeads, onGenerateMessage, onCopyMes
       {/* Sub-tabs */}
       <div className="tab-nav" style={{ marginBottom: 24, paddingLeft: 0 }}>
         {[
-          { id: "prospects" as const, label: `Prospects (${prospects.length})`, icon: Radar },
+          { id: "prospects" as const, label: prospects.length > 0 ? `Prospects (${prospects.length})` : "Prospects", icon: Radar },
           { id: "events" as const, label: `Events (${events.length})`, icon: Calendar },
-          { id: "signals" as const, label: `Market Signals (${signals.length})`, icon: Signal },
+          { id: "signals" as const, label: signals.length > 0 ? `Market Signals (${signals.length})` : "Market Signals", icon: Signal },
           { id: "content" as const, label: "Content Ideas", icon: PenTool },
           { id: "research" as const, label: "Research Lab", icon: Search },
         ].map((t) => (
@@ -120,7 +165,107 @@ export default function Prospecting({ onAddToLeads, onGenerateMessage, onCopyMes
       </div>
 
       {/* PROSPECTS */}
-      {subTab === "prospects" && (
+      {subTab === "prospects" && prospectStatus === "not_connected" && (
+        <div className="card" style={{ padding: 48, textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16, background: "#fff7ed",
+            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+          }}>
+            <WifiOff className="w-6 h-6" style={{ color: "var(--balboa-orange)" }} />
+          </div>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--balboa-navy)", marginBottom: 8 }}>Connect Apify to Discover Prospects</h3>
+          <p style={{ fontSize: 13, color: "var(--balboa-text-muted)", lineHeight: 1.6, marginBottom: 16 }}>
+            Apify powers real-time LinkedIn prospect discovery by scraping and researching potential leads that match your ICP. Add your Apify API token in Settings to get started.
+          </p>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <button
+              onClick={() => window.open("https://console.apify.com/account/integrations", "_blank")}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                background: "linear-gradient(135deg, var(--balboa-navy), var(--balboa-blue))",
+                color: "white", border: "none", cursor: "pointer",
+              }}>
+              <Settings className="w-4 h-4" /> Get Apify Token
+            </button>
+          </div>
+        </div>
+      )}
+
+      {subTab === "prospects" && prospectStatus === "loading" && (
+        <div style={{ padding: 64, textAlign: "center" }}>
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--balboa-blue)", margin: "0 auto 16px" }} />
+          <p style={{ fontSize: 14, color: "var(--balboa-text-muted)", fontWeight: 500 }}>
+            Searching LinkedIn for ICP-matched prospects...
+          </p>
+          <p style={{ fontSize: 12, color: "var(--balboa-text-light)", marginTop: 4 }}>
+            Apify is scanning profiles. This may take 1-2 minutes.
+          </p>
+        </div>
+      )}
+
+      {subTab === "prospects" && prospectStatus === "error" && (
+        <div className="card" style={{ padding: 48, textAlign: "center", maxWidth: 480, margin: "0 auto" }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16, background: "#fef2f2",
+            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+          }}>
+            <AlertCircle className="w-6 h-6" style={{ color: "#dc2626" }} />
+          </div>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--balboa-navy)", marginBottom: 8 }}>Search Failed</h3>
+          <p style={{ fontSize: 13, color: "var(--balboa-text-muted)", lineHeight: 1.5, marginBottom: 16 }}>
+            Could not fetch prospects from Apify. Check your API token and try again.
+          </p>
+          <button onClick={fetchProspects} style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+            background: "var(--balboa-bg-alt)", color: "var(--balboa-navy)",
+            border: "1px solid var(--balboa-border)", cursor: "pointer",
+          }}>
+            <RefreshCw className="w-4 h-4" /> Retry Search
+          </button>
+        </div>
+      )}
+
+      {subTab === "prospects" && (prospectStatus === "success" || prospectStatus === "idle") && prospects.length === 0 && prospectStatus === "success" && (
+        <div className="card" style={{ padding: 48, textAlign: "center", maxWidth: 480, margin: "0 auto" }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16, background: "var(--balboa-bg-alt)",
+            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+          }}>
+            <Radar className="w-6 h-6" style={{ color: "var(--balboa-text-light)" }} />
+          </div>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--balboa-navy)", marginBottom: 8 }}>No Prospects Found</h3>
+          <p style={{ fontSize: 13, color: "var(--balboa-text-muted)", lineHeight: 1.5, marginBottom: 16 }}>
+            The search returned no matching LinkedIn profiles. Try adjusting your ICP criteria.
+          </p>
+          <button onClick={fetchProspects} style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+            background: "var(--balboa-bg-alt)", color: "var(--balboa-navy)",
+            border: "1px solid var(--balboa-border)", cursor: "pointer",
+          }}>
+            <RefreshCw className="w-4 h-4" /> Search Again
+          </button>
+        </div>
+      )}
+
+      {subTab === "prospects" && prospects.length > 0 && (
+        <div>
+          {/* Refresh bar */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: "var(--balboa-text-muted)" }}>
+              {prospects.length} prospects discovered via Apify + LinkedIn
+            </span>
+            <button onClick={fetchProspects} disabled={prospectStatus === "loading"} style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 500,
+              background: "var(--balboa-bg-alt)", color: "var(--balboa-navy)",
+              border: "1px solid var(--balboa-border)", cursor: prospectStatus === "loading" ? "wait" : "pointer",
+            }}>
+              <RefreshCw className={`w-3 h-3 ${prospectStatus === "loading" ? "animate-spin" : ""}`} /> Refresh
+            </button>
+          </div>
         <div style={{ display: "flex", gap: 24 }}>
           <div style={{ flex: selectedProspect ? "0 0 50%" : "1", display: "flex", flexDirection: "column", gap: 8 }}>
             {prospects.map((p) => (
@@ -358,6 +503,7 @@ export default function Prospecting({ onAddToLeads, onGenerateMessage, onCopyMes
             </div>
           )}
         </div>
+        </div>
       )}
 
       {/* EVENTS */}
@@ -459,7 +605,75 @@ export default function Prospecting({ onAddToLeads, onGenerateMessage, onCopyMes
       )}
 
       {/* MARKET SIGNALS */}
-      {subTab === "signals" && (
+      {subTab === "signals" && signalStatus === "not_connected" && (
+        <div className="card" style={{ padding: 48, textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16, background: "#fff7ed",
+            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+          }}>
+            <WifiOff className="w-6 h-6" style={{ color: "var(--balboa-orange)" }} />
+          </div>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--balboa-navy)", marginBottom: 8 }}>Connect Apify for Market Signals</h3>
+          <p style={{ fontSize: 13, color: "var(--balboa-text-muted)", lineHeight: 1.6, marginBottom: 16 }}>
+            Real-time market signals — funding rounds, leadership changes, expansion announcements — powered by Apify web scraping. Connect your Apify token to start monitoring.
+          </p>
+          <button onClick={() => window.open("https://console.apify.com/account/integrations", "_blank")}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: "linear-gradient(135deg, var(--balboa-navy), var(--balboa-blue))",
+              color: "white", border: "none", cursor: "pointer",
+            }}>
+            <Settings className="w-4 h-4" /> Get Apify Token
+          </button>
+        </div>
+      )}
+
+      {subTab === "signals" && signalStatus === "loading" && (
+        <div style={{ padding: 64, textAlign: "center" }}>
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--balboa-blue)", margin: "0 auto 16px" }} />
+          <p style={{ fontSize: 14, color: "var(--balboa-text-muted)", fontWeight: 500 }}>
+            Scanning for market signals...
+          </p>
+          <p style={{ fontSize: 12, color: "var(--balboa-text-light)", marginTop: 4 }}>
+            Apify is searching news and announcements. This may take 1-2 minutes.
+          </p>
+        </div>
+      )}
+
+      {subTab === "signals" && signalStatus === "error" && (
+        <div className="card" style={{ padding: 48, textAlign: "center", maxWidth: 480, margin: "0 auto" }}>
+          <AlertCircle className="w-6 h-6" style={{ color: "#dc2626", margin: "0 auto 12px" }} />
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--balboa-navy)", marginBottom: 8 }}>Signal Search Failed</h3>
+          <p style={{ fontSize: 13, color: "var(--balboa-text-muted)", marginBottom: 16 }}>
+            Could not fetch market signals. Check your Apify token and try again.
+          </p>
+          <button onClick={fetchSignals} style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+            background: "var(--balboa-bg-alt)", color: "var(--balboa-navy)",
+            border: "1px solid var(--balboa-border)", cursor: "pointer",
+          }}>
+            <RefreshCw className="w-4 h-4" /> Retry
+          </button>
+        </div>
+      )}
+
+      {subTab === "signals" && signals.length > 0 && (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: "var(--balboa-text-muted)" }}>
+              {signals.length} market signals detected via Apify
+            </span>
+            <button onClick={fetchSignals} disabled={signalStatus === "loading"} style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 500,
+              background: "var(--balboa-bg-alt)", color: "var(--balboa-navy)",
+              border: "1px solid var(--balboa-border)", cursor: signalStatus === "loading" ? "wait" : "pointer",
+            }}>
+              <RefreshCw className={`w-3 h-3 ${signalStatus === "loading" ? "animate-spin" : ""}`} /> Refresh
+            </button>
+          </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {signals.map((sig) => {
             const typeStyles: Record<string, { bg: string; color: string }> = {
@@ -510,6 +724,7 @@ export default function Prospecting({ onAddToLeads, onGenerateMessage, onCopyMes
               </div>
             );
           })}
+        </div>
         </div>
       )}
     </div>

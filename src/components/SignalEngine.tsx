@@ -811,15 +811,21 @@ export default function SignalEngine({
                               {signal.description}
                             </p>
 
-                            <p style={{ fontSize: 12, color: "#868e96", marginBottom: 8 }}>
-                              {signal.leadName}{signal.company ? ` at ${signal.company}` : ""}
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--balboa-navy)" }}>
+                                {signal.leadName || "Unknown"}
+                              </span>
+                              {signal.company && (
+                                <span style={{ fontSize: 12, color: "var(--balboa-text-muted)", fontWeight: 400 }}>
+                                  at <span style={{ fontWeight: 500 }}>{signal.company}</span>
+                                </span>
+                              )}
                               {(() => {
                                 const src = (signal as LiveSignal & { _source?: string })._source;
                                 if (!src) return null;
                                 return (
                                   <span
                                     style={{
-                                      marginLeft: 8,
                                       fontSize: 10,
                                       fontWeight: 500,
                                       padding: "1px 6px",
@@ -832,7 +838,7 @@ export default function SignalEngine({
                                   </span>
                                 );
                               })()}
-                            </p>
+                            </div>
 
                             {/* Recommended action */}
                             <div

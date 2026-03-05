@@ -117,6 +117,40 @@ function truncate(text: string, max: number): string {
   return text.substring(0, max) + "...";
 }
 
+/** Strip email signatures and quoted reply chains for cleaner display */
+function cleanEmailBody(body: string): { main: string; hasMore: boolean } {
+  if (!body) return { main: "", hasMore: false };
+  const lines = body.split("\n");
+  const cleanLines: string[] = [];
+  let hitSignature = false;
+
+  for (const line of lines) {
+    // Common signature markers
+    if (/^--\s*$/.test(line) || /^_{3,}/.test(line) || /^-{3,}/.test(line)) {
+      hitSignature = true;
+      break;
+    }
+    // Quoted reply chain
+    if (/^>/.test(line.trim()) || /^On .+ wrote:$/i.test(line.trim())) {
+      hitSignature = true;
+      break;
+    }
+    // "Sent from my iPhone" etc
+    if (/^Sent from my /i.test(line.trim())) {
+      hitSignature = true;
+      break;
+    }
+    cleanLines.push(line);
+  }
+
+  // Trim trailing empty lines
+  while (cleanLines.length > 0 && cleanLines[cleanLines.length - 1].trim() === "") {
+    cleanLines.pop();
+  }
+
+  return { main: cleanLines.join("\n"), hasMore: hitSignature };
+}
+
 // ─── Filter types ───────────────────────────────────────────────
 
 type ChannelTab = "all" | "linkedin" | "email" | "sms";
@@ -146,6 +180,7 @@ export default function InboxSection({
   const [localMessages, setLocalMessages] = useState<Record<string, CommunicationMessage[]>>({});
   const [gmailBodies, setGmailBodies] = useState<Record<string, string>>({});
   const [loadingThread, setLoadingThread] = useState(false);
+  const [expandedMsgIds, setExpandedMsgIds] = useState<Set<string>>(new Set());
   const [emailMetrics, setEmailMetrics] = useState<{
     totalThreads: number;
     matchedThreads: number;
@@ -889,7 +924,11 @@ export default function InboxSection({
                         marginBottom: 3,
                       }}
                     >
-                      {truncate(`${convo.leadPosition} at ${convo.leadCompany}`, 40)}
+                      {convo.leadPosition && convo.leadCompany && convo.leadCompany !== "Unmatched"
+                        ? truncate(`${convo.leadPosition} at ${convo.leadCompany}`, 40)
+                        : convo.leadCompany && convo.leadCompany !== "Unmatched"
+                          ? convo.leadCompany
+                          : convo.subject || "Email thread"}
                     </div>
                     <div
                       style={{
@@ -1062,7 +1101,9 @@ export default function InboxSection({
                       }}
                     >
                       {selectedLead
-                        ? `${selectedLead.position} at ${selectedLead.company}`
+                        ? (selectedLead.position
+                          ? `${selectedLead.position} at ${selectedLead.company}`
+                          : selectedLead.company)
                         : selectedConversation.subject || "Email conversation"}
                     </div>
                   </div>
@@ -1133,8 +1174,149 @@ export default function InboxSection({
                   mergedMessages.map((msg) => {
                     const isOutbound = msg.direction === "outbound";
                     const statusInfo = STATUS_DISPLAY[msg.status];
+                    const isEmail = selectedConversation?.channel === "email";
+                    const rawBody = gmailBodies[msg.id] || msg.body;
+                    const { main: cleanBody, hasMore } = isEmail ? cleanEmailBody(rawBody) : { main: rawBody, hasMore: false };
+                    const isExpanded = expandedMsgIds.has(msg.id);
+                    const displayBody = isExpanded ? rawBody : cleanBody;
 
-                    return (
+                    return isEmail ? (
+                      /* ── Email card layout (full width) ── */
+                      <div
+                        key={msg.id}
+                        style={{
+                          width: "100%",
+                          border: "1px solid var(--balboa-border-light, #e5e7eb)",
+                          borderRadius: 10,
+                          background: "#ffffff",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {/* Email header */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "10px 14px",
+                            borderBottom: "1px solid var(--balboa-border-light, #e5e7eb)",
+                            background: isOutbound ? "rgba(59,91,219,0.04)" : "var(--balboa-bg-alt, #fafbfc)",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: "50%",
+                                background: isOutbound ? "#3b5bdb" : "#e5e7eb",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: isOutbound ? "#fff" : "#6b7280",
+                                fontSize: 11,
+                                fontWeight: 700,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {isOutbound ? "ME" : (selectedLead?.firstName?.[0] || msg.sender?.[0] || "?")}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: isOutbound ? "#3b5bdb" : "var(--balboa-navy, #1e2a5e)" }}>
+                                {isOutbound ? "You" : (selectedLead ? `${selectedLead.firstName} ${selectedLead.lastName}` : msg.sender || "Unknown")}
+                              </div>
+                              {msg.subject && (
+                                <div style={{ fontSize: 11, color: "var(--balboa-text-muted, #9ca3af)", fontWeight: 500 }}>
+                                  {msg.subject}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {isOutbound && statusInfo && (
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 3,
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  color: statusInfo.color,
+                                  background: `${statusInfo.color}10`,
+                                  padding: "2px 8px",
+                                  borderRadius: 10,
+                                }}
+                              >
+                                {msg.status === "read" || msg.status === "replied" ? (
+                                  <CheckCircle className="w-3 h-3" />
+                                ) : msg.status === "bounced" || msg.status === "failed" ? (
+                                  <XCircle className="w-3 h-3" />
+                                ) : (
+                                  <Clock className="w-3 h-3" />
+                                )}
+                                {statusInfo.label}
+                              </span>
+                            )}
+                            <span style={{ fontSize: 10, color: "var(--balboa-text-muted, #9ca3af)" }}>
+                              {formatTimestamp(msg.date)}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Email body */}
+                        <div
+                          style={{
+                            padding: "12px 14px",
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                            color: "#1f2937",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {displayBody}
+                          {loadingThread && msg.id.startsWith("gmail-") && !gmailBodies[msg.id] && (
+                            <span style={{ opacity: 0.5, fontStyle: "italic", fontSize: 11 }}> Loading...</span>
+                          )}
+                          {hasMore && !isExpanded && (
+                            <button
+                              onClick={() => setExpandedMsgIds(prev => { const s = new Set(prev); s.add(msg.id); return s; })}
+                              style={{
+                                display: "block",
+                                marginTop: 8,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: "#3b5bdb",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: 0,
+                              }}
+                            >
+                              Show full message...
+                            </button>
+                          )}
+                          {isExpanded && hasMore && (
+                            <button
+                              onClick={() => setExpandedMsgIds(prev => { const s = new Set(prev); s.delete(msg.id); return s; })}
+                              style={{
+                                display: "block",
+                                marginTop: 8,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: "#3b5bdb",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: 0,
+                              }}
+                            >
+                              Collapse
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* ── Chat bubble layout (LinkedIn, SMS, etc.) ── */
                       <div
                         key={msg.id}
                         style={{
@@ -1200,8 +1382,7 @@ export default function InboxSection({
                               {msg.subject}
                             </div>
                           )}
-                          {/* Use full Gmail body if loaded, otherwise show snippet */}
-                          {gmailBodies[msg.id] || msg.body}
+                          {displayBody}
                           {loadingThread && msg.id.startsWith("gmail-") && !gmailBodies[msg.id] && (
                             <span style={{ opacity: 0.5, fontStyle: "italic", fontSize: 11 }}> Loading...</span>
                           )}

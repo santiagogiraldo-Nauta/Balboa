@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Search, Plus, X, Download, UserPlus, Loader2, Sparkles } from "lucide-react";
+import { getClientConfig } from "@/lib/config-client";
 
 // ── Types ──
 
@@ -121,19 +122,51 @@ export default function ListBuilder() {
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
 
+  const { isSandbox } = getClientConfig();
+
   const handleGenerate = useCallback(() => {
     setGenerating(true);
-    setTimeout(() => {
-      const results = MOCK_CONTACTS.map((c, i) => ({
-        ...c,
-        id: `gen-${i}`,
-        selected: false,
-      }));
-      setContacts(results);
-      setGenerating(false);
-      setGenerated(true);
-    }, 2000);
-  }, []);
+    if (isSandbox) {
+      setTimeout(() => {
+        const results = MOCK_CONTACTS.map((c, i) => ({
+          ...c,
+          id: `gen-${i}`,
+          selected: false,
+        }));
+        setContacts(results);
+        setGenerating(false);
+        setGenerated(true);
+      }, 2000);
+    } else {
+      // Production: call real API for prospect search
+      fetch("/api/discover/prospects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ titles, industries, compMin, compMax, geography, additionalFilters }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          const results = (data.prospects || []).map((p: Record<string, string | number>, i: number) => ({
+            id: `gen-${i}`,
+            name: p.name || "Unknown",
+            title: p.title || "",
+            company: p.company || "",
+            industry: p.industry || "",
+            employees: Number(p.employees) || 0,
+            linkedinUrl: (p.linkedinUrl as string) || "",
+            icpScore: Number(p.icpScore) || 0,
+            selected: false,
+          }));
+          setContacts(results);
+          setGenerated(true);
+        })
+        .catch(() => {
+          setContacts([]);
+          setGenerated(true);
+        })
+        .finally(() => setGenerating(false));
+    }
+  }, [isSandbox, titles, industries, compMin, compMax, geography, additionalFilters]);
 
   const toggleSelect = (id: string) => {
     setContacts((prev) =>
