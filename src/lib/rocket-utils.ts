@@ -205,9 +205,12 @@ export function scoreLeadICP(lead: Lead): { totalScore: number; breakdown: Array
       }
       case "tmsSystem": {
         const techStack = companyIntel?.techStack || [];
-        matched = !techStack.some(t => /tms|mercurygate|kuebix|manhattan/i.test(t));
-        if (weight.signal.includes("No dedicated")) matched = !matched || techStack.length === 0;
-        else matched = false;
+        // Only score if we actually have techStack data — don't give free points for empty data
+        if (techStack.length > 0) {
+          matched = weight.signal.includes("No dedicated")
+            ? !techStack.some(t => /tms|mercurygate|kuebix|manhattan/i.test(t))
+            : false;
+        }
         break;
       }
       case "estimatedRevenue": {
