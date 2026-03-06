@@ -1077,3 +1077,81 @@ export interface BuyerPersona {
   additionalFilters?: Record<string, string>;
   createdAt: string;
 }
+
+// ─── ROCKET PIPELINE TYPES ──────────────────────────────────────
+
+export type StrategicPriority = "SP1" | "SP2" | "SP3" | "SP4" | "SP5";
+export type BusinessChallenge = "BC1" | "BC2" | "BC3" | "BC4" | "BC5" | "BC6";
+export type SeniorityBucket = "c-level" | "vp" | "director" | "manager";
+export type PersonaType = "vp-procurement" | "vp-supply-chain" | "cfo" | "coo" | "import-manager";
+
+export type RocketPipelineStage =
+  | "upload" | "mapping" | "clean-icp" | "enrichment"
+  | "research" | "segmentation" | "sequence-gen" | "review-export";
+
+export interface CompanyResearch {
+  companyName: string;
+  erpSystem?: string;
+  tmsSystem?: string;
+  estimatedRevenue?: string;
+  importVolume?: string;
+  assignedSP: StrategicPriority | null;
+  assignedBC: BusinessChallenge | null;
+  spReasoning: string;
+  bcReasoning: string;
+  signals: string[];
+  verticalNotes: string;
+}
+
+export interface RocketSegment {
+  segmentKey: string;
+  categoryId: string;
+  persona: PersonaType;
+  seniority: SeniorityBucket;
+  leadIds: string[];
+  touchSequence: SequenceTouch[];
+}
+
+export interface SequenceTouch {
+  touchNumber: number;
+  channel: "email" | "call" | "linkedin";
+  dayOffset: number;
+  label: string;
+  subject?: string;
+  body: string;
+  callScript?: string;
+  researchFieldUsed: string;
+  variant?: "A" | "B";
+}
+
+export interface RocketPipelineState {
+  stage: RocketPipelineStage;
+  leads: Lead[];
+  columnMapping: RocketColumnMapping;
+  icpResults: { passed: Lead[]; review: Lead[]; parked: Lead[] };
+  companyResearch: Record<string, CompanyResearch>;
+  segments: RocketSegment[];
+  generatedSequences: Record<string, SequenceTouch[]>;
+  qualityChecklist: Record<string, boolean>;
+  importId?: string;
+}
+
+export interface RocketColumnMapping {
+  name: string | null;
+  email: string | null;
+  company: string | null;
+  position: string | null;
+  phone: string | null;
+  linkedinUrl: string | null;
+  sequence: string | null;
+  classification: string | null;
+}
+
+export interface ICPScoringResult {
+  leadId: string;
+  leadName: string;
+  company: string;
+  totalScore: number;
+  breakdown: Array<{ signal: string; points: number; matched: boolean }>;
+  bucket: "auto-enroll" | "review" | "parked";
+}

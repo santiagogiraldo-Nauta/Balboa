@@ -1411,33 +1411,7 @@ export default function Dashboard() {
           <div className="p-6">
             <OutreachSection
               leads={leads}
-              selectedLead={selectedLead}
-              communications={communications}
-              contentLanguage={contentLanguage}
-              events={events}
-              onGenerateMessageInline={generateMessageInline}
-              onCopyMessage={copyToClipboard}
               onNavigateToLead={handleNavigateToLead}
-              generatingForLeadId={generatingForLeadId}
-              onAskVasco={setVascoPrompt}
-              onUpdateLeadStatus={updateLeadStatus}
-              onAddNote={handleAddNote}
-              onAnalyzeLead={analyzeLead}
-              onGenerateMessage={generateMessage}
-              onUpdateDraftStatus={updateDraftStatus}
-              onBattleCardGenerate={handleBattleCardGenerate}
-              battleCardGenerating={battleCardGenerating}
-              onOpenEmailPopup={(prefill) => { if (prefill) setPopupPrefill(prefill); setShowEmailPopup(true); }}
-              onOpenLinkedInPopup={(prefill) => { if (prefill) setPopupPrefill(prefill as { body?: string; draftId?: string }); setShowLinkedInPopup(true); }}
-              onOpenProposalPopup={() => setShowProposalPopup(true)}
-              onOpenVideoPrep={() => setShowVideoPrep(true)}
-              onOpenPrepKit={() => setShowPrepKit(true)}
-              onOpenMeetingScheduler={() => setShowMeetingScheduler(true)}
-              onOpenDeepResearch={() => setShowDeepResearch(true)}
-              generatingAction={generatingAction}
-              leadAnalysis={leadAnalysis}
-              analyzingLead={analyzingLead}
-              onLanguageChange={setContentLanguage}
             />
           </div>
         )}
@@ -1480,12 +1454,16 @@ export default function Dashboard() {
         {/* === ROCKET === */}
         {sidebarSection === "rocket" && (
           <div className="p-6">
-            <RocketImport userId={userId || undefined} onImportComplete={async () => {
-              if (userId) {
-                const refreshed = await getLeads(supabase, userId);
-                if (refreshed.length > 0) setLeads(refreshed);
-              }
-            }} />
+            <OutreachSection
+              leads={leads}
+              onNavigateToLead={handleNavigateToLead}
+              onImportComplete={async () => {
+                if (userId) {
+                  const refreshed = await getLeads(supabase, userId);
+                  if (refreshed.length > 0) setLeads(refreshed);
+                }
+              }}
+            />
           </div>
         )}
 
