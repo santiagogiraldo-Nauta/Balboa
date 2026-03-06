@@ -603,16 +603,138 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
 
   // ── Export (Stage 8) ──────────────────────────────────────────
 
-  const handleExport = useCallback(async () => {
+  const escapeCSV = (val: string) => {
+    if (!val) return "";
+    if (val.includes(",") || val.includes('"') || val.includes("\n")) {
+      return `"${val.replace(/"/g, '""')}"`;
+    }
+    return val;
+  };
+
+  // Download CSV — one row per touch per lead, ready for copy-paste
+  const downloadCSV = useCallback(() => {
+    const csvHeaders = [
+      "Segment", "First Name", "Last Name", "Email", "Company", "Title",
+      "Phone", "LinkedIn URL", "SP Category", "BC Category",
+      "Touch #", "Day", "Channel", "Label", "Subject Line", "Body / Script",
+    ];
+
+    const csvRows: string[][] = [];
+
+    for (const [segKey, touches] of Object.entries(generatedSequences)) {
+      const segment = segments.find((s) => s.segmentKey === segKey);
+      if (!segment) continue;
+
+      for (const leadId of segment.leadIds) {
+        const rowIdx = parseInt(leadId.replace("temp-", ""));
+        const row = rows[rowIdx];
+        if (!row) continue;
+
+        const nameValue = resolveValue(row, mapping.name);
+        const nameParts = nameValue.split(" ");
+        const firstName = nameParts[0] || "";
+        const lastName = nameParts.slice(1).join(" ") || "";
+        const email = resolveValue(row, mapping.email);
+        const company = resolveValue(row, mapping.company);
+        const title = resolveValue(row, mapping.position);
+        const phone = resolveValue(row, mapping.phone);
+        const linkedinUrl = resolveValue(row, mapping.linkedinUrl);
+        const research = companyResearch[company];
+        const spLabel = research?.assignedSP ? STRATEGIC_PRIORITIES[research.assignedSP]?.label : "";
+        const bcLabel = research?.assignedBC ? BUSINESS_CHALLENGES[research.assignedBC]?.label : "";
+
+        for (const touch of touches) {
+          // Personalize body: replace placeholders
+          let body = touch.body
+            .replace(/\[Name\]/g, firstName)
+            .replace(/your company/g, company || "your company");
+
+          csvRows.push([
+            segKey, firstName, lastName, email, company, title,
+            phone, linkedinUrl, spLabel, bcLabel,
+            String(touch.touchNumber), String(touch.dayOffset), touch.channel,
+            touch.label || "", touch.subject || "", body,
+          ]);
+        }
+      }
+    }
+
+    const csv = [
+      csvHeaders.map(escapeCSV).join(","),
+      ...csvRows.map((row) => row.map(escapeCSV).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rocket-sequences-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    const totalLeads = segments.reduce((s, seg) => s + seg.leadIds.length, 0);
+    setExportSummary({ leads: totalLeads, sequences: Object.keys(generatedSequences).length, errors: 0 });
+    setExportDone(true);
+  }, [generatedSequences, segments, rows, mapping, companyResearch]);
+
+  // Download summary per segment — one sheet per sequence with all touches
+  const downloadSequenceSummary = useCallback(() => {
+    const lines: string[] = [];
+    const divider = "=".repeat(70);
+
+    for (const [segKey, touches] of Object.entries(generatedSequences)) {
+      const segment = segments.find((s) => s.segmentKey === segKey);
+      if (!segment) continue;
+
+      const leadCount = segment.leadIds.length;
+      const sampleLeadIds = segment.leadIds.slice(0, 3);
+      const sampleNames = sampleLeadIds.map((id) => {
+        const row = rows[parseInt(id.replace("temp-", ""))];
+        return resolveValue(row, mapping.name);
+      }).join(", ");
+
+      lines.push(divider);
+      lines.push(`SEQUENCE: ${segKey}`);
+      lines.push(`Leads: ${leadCount} | Sample: ${sampleNames}`);
+      lines.push(`Persona: ${segment.persona} | Seniority: ${segment.seniority}`);
+      lines.push(divider);
+      lines.push("");
+
+      for (const touch of touches) {
+        lines.push(`--- Touch ${touch.touchNumber} | Day ${touch.dayOffset} | ${touch.channel.toUpperCase()} | ${touch.label || ""} ---`);
+        if (touch.subject) lines.push(`Subject: ${touch.subject}`);
+        lines.push("");
+        lines.push(touch.body);
+        lines.push("");
+        lines.push("");
+      }
+
+      lines.push("");
+      lines.push("");
+    }
+
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rocket-playbook-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [generatedSequences, segments, rows, mapping]);
+
+  // Save to Balboa DB (existing behavior)
+  const saveToBalboa = useCallback(async () => {
     setError(null);
     setExporting(true);
-    setExportDone(false);
     let exportedSegments = 0;
     let exportErrors = 0;
     let totalLeadsExported = 0;
 
     try {
-      // Export each segment's sequence + leads to Supabase via /api/rocket/import
       for (const [segKey, touches] of Object.entries(generatedSequences)) {
         const segment = segments.find((s) => s.segmentKey === segKey);
         if (!segment) continue;
@@ -657,30 +779,20 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
             exportedSegments++;
             totalLeadsExported += segment.leadIds.length;
           } else {
-            const errBody = await res.json().catch(() => ({}));
             exportErrors++;
-            console.error(`Export failed for segment ${segKey}: ${res.status}`, errBody);
           }
-        } catch (err) {
+        } catch {
           exportErrors++;
-          console.error(`Export error for segment ${segKey}:`, err);
         }
       }
 
-      setExportSummary({ leads: totalLeadsExported, sequences: exportedSegments, errors: exportErrors });
-      setExportDone(true);
-
-      onImportComplete?.({
-        leads: totalLeadsExported,
-        sequences: exportedSegments,
-        errors: exportErrors,
-      });
-
       if (exportErrors > 0) {
-        setError(`Exported ${exportedSegments} segments with ${exportErrors} error(s).`);
+        setError(`Saved ${exportedSegments} segments with ${exportErrors} error(s).`);
       }
+
+      onImportComplete?.({ leads: totalLeadsExported, sequences: exportedSegments, errors: exportErrors });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Export failed");
+      setError(err instanceof Error ? err.message : "Save failed");
     } finally {
       setExporting(false);
     }
@@ -1407,48 +1519,72 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
             </div>
           </div>
 
-          {/* Export Button + Status */}
-          {exportDone && exportSummary ? (
+          {/* Export Actions */}
+          {exportDone && exportSummary && (
             <div style={{
               padding: 16, borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0",
-              textAlign: "center",
+              textAlign: "center", marginBottom: 16,
             }}>
-              <CheckCircle size={28} style={{ color: "#16a34a", marginBottom: 8 }} />
-              <div style={{ fontWeight: 700, fontSize: 15, color: "#166534", marginBottom: 4 }}>
-                Export Complete
+              <CheckCircle size={24} style={{ color: "#16a34a", marginBottom: 6 }} />
+              <div style={{ fontWeight: 700, fontSize: 14, color: "#166534", marginBottom: 2 }}>
+                CSV Downloaded
               </div>
-              <div style={{ fontSize: 13, color: "#15803d" }}>
-                {exportSummary.leads} leads enrolled across {exportSummary.sequences} sequences
-                {exportSummary.errors > 0 && (
-                  <span style={{ color: "#dc2626" }}> · {exportSummary.errors} error(s)</span>
-                )}
+              <div style={{ fontSize: 12, color: "#15803d" }}>
+                {exportSummary.leads} leads × {Object.values(generatedSequences)[0]?.length || 13} touches across {exportSummary.sequences} sequences
               </div>
             </div>
-          ) : (
+          )}
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            {/* Primary: Download CSV */}
             <button
-              onClick={handleExport}
-              disabled={exporting}
+              onClick={downloadCSV}
               style={{
-                padding: "14px 28px", fontSize: 14, fontWeight: 700,
-                background: exporting ? "#94a3b8" : "var(--balboa-navy)", color: "white", border: "none",
-                borderRadius: 8, cursor: exporting ? "not-allowed" : "pointer", display: "flex", alignItems: "center",
-                gap: 8, margin: "0 auto", opacity: exporting ? 0.7 : 1,
-                transition: "all 0.2s",
+                padding: "12px 24px", fontSize: 13, fontWeight: 700,
+                background: "var(--balboa-navy)", color: "white", border: "none",
+                borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center",
+                gap: 8, transition: "all 0.2s",
               }}
             >
-              {exporting ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Exporting…
-                </>
-              ) : (
-                <>
-                  <Download size={16} />
-                  Export & Enroll Leads
-                </>
-              )}
+              <Download size={15} />
+              Download CSV
             </button>
-          )}
+
+            {/* Secondary: Playbook TXT */}
+            <button
+              onClick={downloadSequenceSummary}
+              style={{
+                padding: "12px 24px", fontSize: 13, fontWeight: 700,
+                background: "white", color: "var(--balboa-navy)", border: "1px solid #e2e8f0",
+                borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center",
+                gap: 8, transition: "all 0.2s",
+              }}
+            >
+              <FileText size={15} />
+              Download Playbook
+            </button>
+
+            {/* Tertiary: Save to Balboa */}
+            <button
+              onClick={saveToBalboa}
+              disabled={exporting}
+              style={{
+                padding: "12px 24px", fontSize: 13, fontWeight: 600,
+                background: "white", color: exporting ? "#94a3b8" : "#64748b",
+                border: "1px solid #e2e8f0",
+                borderRadius: 8, cursor: exporting ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", gap: 8,
+                opacity: exporting ? 0.6 : 1, transition: "all 0.2s",
+              }}
+            >
+              {exporting ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />}
+              {exporting ? "Saving…" : "Save to Balboa"}
+            </button>
+          </div>
+
+          <p style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", marginTop: 10 }}>
+            CSV = one row per touch per lead (ready for copy-paste). Playbook = readable sequence scripts grouped by segment.
+          </p>
         </div>
       )}
 
