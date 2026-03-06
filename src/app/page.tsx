@@ -5,7 +5,7 @@ import Papa from "papaparse";
 import JSZip from "jszip";
 import {
   Upload, Users, CheckCircle, Clock,
-  Target, Send, Sparkles,
+  Target, Send, Sparkles, Rocket,
   LogOut, Mail, Bell, BarChart3, Settings,
 } from "lucide-react";
 import type { Lead, Deal, Account, DraftMessage, CallLog, CallOutcome, VideoPrep, PrepKit, BattleCard, SupportedLanguage, SidebarSection } from "@/lib/types";
@@ -29,6 +29,7 @@ import OutreachSection from "@/components/OutreachSection";
 import DealsSection from "@/components/DealsSection";
 import InsightsSection from "@/components/InsightsSection";
 import SettingsSection from "@/components/SettingsSection";
+import RocketImport from "@/components/RocketImport";
 import { getClientConfig } from "@/lib/config-client";
 import { mockDeals, mockAccounts } from "@/lib/mock-phase2";
 import { mockEvents } from "@/lib/mock-events";
@@ -1106,6 +1107,7 @@ export default function Dashboard() {
     outreach: { title: "Outreach", subtitle: "Create, automate, and schedule outreach" },
     deals: { title: "Deals", subtitle: "Pipeline, buyer journeys, and stakeholder engagement" },
     insights: { title: "Insights", subtitle: "AI-detected patterns and deal outcome analysis" },
+    rocket: { title: "Rocket", subtitle: "CSV import and AI enrichment pipeline" },
     settings: { title: "Settings", subtitle: "Compliance, privacy, and AI agents" },
   };
 
@@ -1181,6 +1183,13 @@ export default function Dashboard() {
             className={`sidebar-item ${sidebarSection === "insights" ? "active" : ""}`}>
             <BarChart3 className="w-5 h-5" />
             <span className="tooltip">Insights</span>
+          </button>
+
+          {/* Rocket */}
+          <button onClick={() => navigateTo("rocket")}
+            className={`sidebar-item ${sidebarSection === "rocket" ? "active" : ""}`}>
+            <Rocket className="w-5 h-5" />
+            <span className="tooltip">Rocket</span>
           </button>
 
           {/* Settings */}
@@ -1468,6 +1477,18 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* === ROCKET === */}
+        {sidebarSection === "rocket" && (
+          <div className="p-6">
+            <RocketImport userId={userId || undefined} onImportComplete={async () => {
+              if (userId) {
+                const refreshed = await getLeads(supabase, userId);
+                if (refreshed.length > 0) setLeads(refreshed);
+              }
+            }} />
+          </div>
+        )}
+
         {/* === SETTINGS === */}
         {sidebarSection === "settings" && (
           <div className="p-6">
@@ -1475,6 +1496,7 @@ export default function Dashboard() {
               leads={leads}
               selectedLead={selectedLead}
               language={contentLanguage}
+              onNavigateToRocket={() => setSidebarSection("rocket")}
             />
           </div>
         )}

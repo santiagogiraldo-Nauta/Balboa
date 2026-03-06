@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Cpu,
   Radio,
+  Rocket,
   CheckCircle,
   AlertTriangle,
 } from "lucide-react";
@@ -37,6 +38,7 @@ interface SettingsSectionProps {
   selectedLead: Lead | null;
   language: SupportedLanguage;
   initialTab?: SettingsTab;
+  onNavigateToRocket?: () => void;
 }
 
 const TABS = [
@@ -112,6 +114,7 @@ export default function SettingsSection({
   selectedLead,
   language,
   initialTab,
+  onNavigateToRocket,
 }: SettingsSectionProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || "integrations");
   const [showLinkedInAuditLog, setShowLinkedInAuditLog] = useState(false);
@@ -412,6 +415,50 @@ export default function SettingsSection({
             onSync={() => handleSync("gmail")}
             onTest={() => handleTest("email")}
           />
+
+          {/* ─── Rocket ────────────────────────────────────────── */}
+          <IntegrationCard
+            name="Rocket"
+            description="CSV import pipeline with AI-powered lead enrichment. Import prospect lists and auto-classify with ICP scoring."
+            icon={Rocket}
+            iconGradient="linear-gradient(135deg, #DF7F40, #c2571e)"
+            status="connected"
+            connectMode="oauth"
+            connectedLabel="Built-in"
+            loading={loading}
+            onConnect={onNavigateToRocket}
+          >
+            <div style={{
+              marginTop: 14,
+              padding: "10px 14px",
+              background: "var(--balboa-bg-alt)",
+              borderRadius: 8,
+              border: "1px solid var(--balboa-border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}>
+              <span style={{ fontSize: 12, color: "var(--balboa-text-muted)" }}>
+                Upload CSVs, map columns, and enrich leads with AI
+              </span>
+              {onNavigateToRocket && (
+                <button
+                  onClick={onNavigateToRocket}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "var(--balboa-blue)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "4px 8px",
+                  }}
+                >
+                  Open Rocket
+                </button>
+              )}
+            </div>
+          </IntegrationCard>
 
           {/* ─── Amplemarket ────────────────────────────────────── */}
           <IntegrationCard

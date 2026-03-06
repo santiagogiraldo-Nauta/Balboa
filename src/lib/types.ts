@@ -322,7 +322,7 @@ export interface DashboardStats {
   weeklyEngagement: number;
 }
 
-export type SidebarSection = "home" | "leads" | "inbox" | "outreach" | "deals" | "insights" | "settings";
+export type SidebarSection = "home" | "leads" | "inbox" | "outreach" | "deals" | "insights" | "rocket" | "settings";
 
 // === LINKEDIN OUTREACH TRACKER ===
 export type LinkedInOutreachStage =
