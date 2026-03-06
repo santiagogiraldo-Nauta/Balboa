@@ -48,16 +48,17 @@ export async function GET() {
         probability: d.probability,
         deal_health: d.deal_health || "warm",
         deal_owner: "Santiago Giraldo",
-        pipeline: "sales",
+        pipeline: d.pipeline || "sales",
         contact_name: lead ? `${lead.first_name} ${lead.last_name}`.trim() : null,
         lead_id: d.lead_id,
-        close_date: d.next_action_date,
+        close_date: d.close_date || d.next_action_date,
         days_in_stage: daysSinceUpdate,
         last_activity_days: daysSinceUpdate,
         last_activity_type: "email",
         next_step: d.next_action || d.strategy_recommendation,
         contacts_count: 1,
         created_at: d.created_at,
+        hubspot_deal_id: d.hubspot_deal_id || null,
       };
     });
 
@@ -71,6 +72,7 @@ export async function GET() {
 // ── PUT: update a deal (stage, amount, etc.) ──
 
 const reverseStageMap: Record<string, string> = {
+  // Sales Pipeline
   discovery: "Discovery",
   scope: "Scope",
   proposal_review: "Proposal Review",
@@ -78,10 +80,12 @@ const reverseStageMap: Record<string, string> = {
   contracting: "Contracting",
   closed_won: "Closed Won",
   closed_lost: "Closed Lost",
+  // Bus Dev Pipeline
   lead: "Lead",
   meeting_scheduled: "Meeting Scheduled",
   meeting_held: "Meeting Held",
   qualified: "Qualified",
+  disqualified: "Disqualified",
 };
 
 export async function PUT(req: NextRequest) {
@@ -127,6 +131,7 @@ export async function PUT(req: NextRequest) {
 /** Map DB deal_stage strings to PipelineDeal stage IDs */
 function mapDealStage(stage: string): string {
   const stageMap: Record<string, string> = {
+    // Sales Pipeline stages
     "Discovery": "discovery",
     "Scope": "scope",
     "Proposal Review": "proposal_review",
@@ -134,10 +139,13 @@ function mapDealStage(stage: string): string {
     "Contracting": "contracting",
     "Closed Won": "closed_won",
     "Closed Lost": "closed_lost",
+    "Not ICP": "closed_lost",
+    // Bus Dev Pipeline stages
     "Lead": "lead",
     "Meeting Scheduled": "meeting_scheduled",
     "Meeting Held": "meeting_held",
     "Qualified": "qualified",
+    "Disqualified": "disqualified",
   };
   return stageMap[stage] || stage.toLowerCase().replace(/\s+/g, "_");
 }

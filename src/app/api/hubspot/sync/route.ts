@@ -219,28 +219,59 @@ async function syncDeals(
   supabase: ReturnType<typeof createClient> extends Promise<infer T> ? T : never,
   userId: string,
   accessToken: string
-): Promise<{ synced: number }> {
-  const page = await getHubSpotDeals(accessToken, { limit: 100 });
+): Promise<{ synced: number; created: number; updated: number }> {
   let synced = 0;
+  let created = 0;
+  let updated = 0;
+  let after: string | undefined;
 
-  for (const deal of page.results) {
-    // Upsert into our deals table
-    const dealStage = mapDealStage(deal.properties.dealstage || "");
+  do {
+    const page = await getHubSpotDeals(accessToken, {
+      limit: 100,
+      after,
+      properties: ["dealname", "amount", "dealstage", "pipeline", "closedate", "hubspot_owner_id"],
+    });
 
-    await supabase.from("deals").upsert({
-      user_id: userId,
-      deal_name: deal.properties.dealname || "Untitled Deal",
-      amount: deal.properties.amount ? parseFloat(deal.properties.amount) : null,
-      deal_stage: dealStage,
-      hubspot_deal_id: deal.id,
-      hubspot_last_sync: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "hubspot_deal_id" });
+    for (const deal of page.results) {
+      const pipelineId = deal.properties.pipeline || "default";
+      const pipeline = mapPipeline(pipelineId);
+      const dealStage = mapDealStage(deal.properties.dealstage || "", pipelineId);
 
-    synced++;
-  }
+      // Check if deal already exists
+      const { data: existing } = await supabase
+        .from("deals")
+        .select("id")
+        .eq("hubspot_deal_id", deal.id)
+        .eq("user_id", userId)
+        .single();
 
-  return { synced };
+      const dealData = {
+        user_id: userId,
+        deal_name: deal.properties.dealname || "Untitled Deal",
+        amount: deal.properties.amount ? parseFloat(deal.properties.amount) : null,
+        deal_stage: dealStage,
+        pipeline,
+        close_date: deal.properties.closedate || null,
+        hubspot_owner_id: deal.properties.hubspot_owner_id || null,
+        hubspot_deal_id: deal.id,
+        hubspot_last_sync: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      await supabase.from("deals").upsert(dealData, { onConflict: "hubspot_deal_id" });
+
+      if (existing) {
+        updated++;
+      } else {
+        created++;
+      }
+      synced++;
+    }
+
+    after = page.paging?.next?.after;
+  } while (after);
+
+  return { synced, created, updated };
 }
 
 async function syncSequences(
@@ -296,16 +327,61 @@ async function pushLeadsToHubSpot(
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
-function mapDealStage(hubspotStage: string): string {
-  const stageMap: Record<string, string> = {
-    appointmentscheduled: "qualification",
-    qualifiedtobuy: "qualification",
-    presentationscheduled: "proposal",
-    decisionmakerboughtin: "proposal",
-    contractsent: "negotiation",
-    closedwon: "closed_won",
-    closedlost: "closed_lost",
+/** Map HubSpot pipeline ID to Balboa pipeline name */
+function mapPipeline(hubspotPipelineId: string): string {
+  const pipelineMap: Record<string, string> = {
+    default: "sales",
+    "797275510": "busdev",
+    "732682072": "payments",
+    "141784440": "partnerships",
+    "753706766": "referrals",
+  };
+  return pipelineMap[hubspotPipelineId] || "sales";
+}
+
+/** Map HubSpot deal stage to Balboa stage ID, scoped by pipeline */
+function mapDealStage(hubspotStage: string, pipelineId: string): string {
+  // Sales Pipeline (default) stage mapping
+  const salesStageMap: Record<string, string> = {
+    presentationscheduled: "Discovery",
+    decisionmakerboughtin: "Scope",
+    contractsent: "Proposal Review",
+    "1169927465": "Go",
+    closedwon: "Contracting",
+    "937672115": "Closed Won",
+    closedlost: "Closed Lost",
+    "1123758210": "Not ICP",
+    // Legacy/default HubSpot stage names
+    appointmentscheduled: "Discovery",
+    qualifiedtobuy: "Scope",
   };
 
-  return stageMap[hubspotStage?.toLowerCase()] || "qualification";
+  // Bus Dev Pipeline (797275510) stage mapping
+  const busdevStageMap: Record<string, string> = {
+    "1169948203": "Lead",
+    "1169948205": "Meeting Scheduled",
+    "1169948206": "Meeting Held",
+    "1218492458": "Qualified",
+    "1169948207": "Disqualified",
+    "1174882119": "Closed Lost",
+    "1238183285": "Not ICP",
+  };
+
+  // Payments Pipeline (732682072)
+  const paymentsStageMap: Record<string, string> = {
+    "1067254188": "Closed Won",
+    "1067254189": "Closed Lost",
+  };
+
+  const stage = hubspotStage?.toLowerCase() || "";
+
+  if (pipelineId === "797275510") {
+    return busdevStageMap[hubspotStage] || busdevStageMap[stage] || "Lead";
+  }
+  if (pipelineId === "732682072") {
+    return paymentsStageMap[hubspotStage] || paymentsStageMap[stage] || hubspotStage;
+  }
+
+  // Default = Sales Pipeline
+  return salesStageMap[hubspotStage] || salesStageMap[stage] || "Discovery";
 }
