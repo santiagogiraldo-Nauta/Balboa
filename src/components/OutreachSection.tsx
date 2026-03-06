@@ -46,6 +46,7 @@ interface OutreachSectionProps {
   leadAnalysis?: unknown;
   analyzingLead?: boolean;
   onLanguageChange: (lang: SupportedLanguage) => void;
+  onImportComplete?: (summary: { leads: number; sequences: number; errors: number }) => void;
 }
 
 const TABS = [
@@ -87,6 +88,7 @@ export default function OutreachSection({
   leadAnalysis,
   analyzingLead,
   onLanguageChange,
+  onImportComplete,
 }: OutreachSectionProps) {
   const [activeTab, setActiveTab] = useState<OutreachTab>("compose");
 
@@ -141,7 +143,7 @@ export default function OutreachSection({
       )}
 
       {activeTab === "rocket" && (
-        <RocketImport />
+        <RocketImport onImportComplete={onImportComplete} />
       )}
 
       {activeTab === "events" && (

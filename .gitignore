@@ -4,3 +4,12 @@ node_modules/
 .env*.local
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude
+.claude/
+
+# Test data
+test-data/
+
+# Supabase temp
+supabase/.temp/

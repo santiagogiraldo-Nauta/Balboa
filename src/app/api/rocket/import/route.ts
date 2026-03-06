@@ -3,27 +3,26 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth-check";
 import { upsertSequence } from "@/lib/db-sequences";
 import { insertSequenceEnrollment } from "@/lib/db-touchpoints";
+import { trackEvent } from "@/lib/tracking";
 
 /**
  * POST /api/rocket/import
  *
  * Imports Rocket sequence export data into Balboa.
+ * Now with: import history, quality scoring, event tracking, field validation.
  *
- * Rocket exports contain:
- * - Lead info (name, email, company, title, LinkedIn)
- * - SP/BC classification (Strategic Priority / Business Challenge)
- * - ICP scoring data
- * - Sequence assignment (which 13-touch sequence they belong to)
- * - Personalization data (signals, metrics, talking points)
- *
- * Body: { leads: [...], sequence?: { name, description, steps } }
- *
- * CSV columns expected:
- * first_name, last_name, email, company, title, linkedin_url,
- * sp_category, bc_category, icp_score, segment,
- * sequence_name, phone, industry, revenue, employee_count
+ * Body: {
+ *   leads: [...],
+ *   sequence?: { name, description, steps },
+ *   filename?: string,
+ *   fileType?: string,
+ *   columnMapping?: Record<string, string>,
+ *   sourcePlatform?: string
+ * }
  */
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+
   const { user, error } = await getAuthUser();
   if (error || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -35,15 +34,59 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const leads = body.leads || [];
     const sequenceInfo = body.sequence;
+    const filename = body.filename || "unknown.csv";
+    const fileType = body.fileType || "csv";
+    const columnMapping = body.columnMapping || {};
+    const sourcePlatform = body.sourcePlatform || null;
 
     if (!leads.length) {
       return NextResponse.json({ error: "No leads provided" }, { status: 400 });
     }
 
-    console.log(`[Rocket Import] Importing ${leads.length} leads`);
+    // ── Track import started ──────────────────────────────────────
+    await trackEvent(supabase, user.id, {
+      eventCategory: "lead",
+      eventAction: "csv_imported",
+      numericValue: leads.length,
+      metadata: {
+        phase: "started",
+        filename,
+        fileType,
+        sourcePlatform,
+        hasSequence: !!sequenceInfo,
+      },
+      source: "api",
+    });
 
-    // 1. Create the sequence record if provided
+    console.log(`[Rocket Import] Importing ${leads.length} leads from ${filename}`);
+
+    // ── Validate leads & compute quality metrics ─────────────────
+    const validationErrors: string[] = [];
+    const validLeads: typeof leads = [];
+
+    for (let i = 0; i < leads.length; i++) {
+      const lead = leads[i];
+      const email = (lead.email || "").toLowerCase().trim();
+      const name = lead.first_name || lead.firstName || lead.name || "";
+      const linkedin = lead.linkedin_url || lead.linkedinUrl || "";
+
+      // Must have at least email OR linkedin URL OR name+company
+      if (!email && !linkedin && !(name && (lead.company || ""))) {
+        validationErrors.push(
+          `Row ${i + 1}: Skipped — no email, LinkedIn URL, or name+company`
+        );
+        continue;
+      }
+
+      validLeads.push(lead);
+    }
+
+    // Quality score calculation
+    const qualityScore = computeQualityScore(validLeads);
+
+    // ── Create sequence record if provided ────────────────────────
     let sequenceId: string | null = null;
+    let sequenceName: string | null = null;
     if (sequenceInfo) {
       const seq = await upsertSequence(supabase, {
         user_id: user.id,
@@ -54,19 +97,21 @@ export async function POST(req: NextRequest) {
         status: "active",
         total_steps: sequenceInfo.steps?.length || 13,
         steps: sequenceInfo.steps || generateDefaultRocketSteps(),
-        stats: { enrolled: leads.length },
+        stats: { enrolled: validLeads.length },
         synced_at: new Date().toISOString(),
       });
       sequenceId = seq?.id || null;
+      sequenceName = seq?.name || sequenceInfo.name || null;
     }
 
-    // 2. Import each lead
+    // ── Import each valid lead ────────────────────────────────────
     let created = 0;
     let updated = 0;
     let enrolled = 0;
-    const errors: string[] = [];
+    const importErrors: string[] = [];
+    const importedLeadIds: string[] = [];
 
-    for (const lead of leads) {
+    for (const lead of validLeads) {
       try {
         const email = (lead.email || "").toLowerCase().trim();
         const firstName = lead.first_name || lead.firstName || "";
@@ -74,6 +119,7 @@ export async function POST(req: NextRequest) {
         const company = lead.company || "";
         const position = lead.title || lead.position || "";
         const linkedinUrl = lead.linkedin_url || lead.linkedinUrl || null;
+        const phone = lead.phone || null;
 
         // SP/BC classification
         const spCategory = lead.sp_category || lead.strategicPriority || null;
@@ -92,6 +138,17 @@ export async function POST(req: NextRequest) {
             .from("leads")
             .select("id")
             .eq("email", email)
+            .eq("user_id", user.id)
+            .single();
+          existingId = existing?.id || null;
+        }
+
+        // Also check by LinkedIn URL if no email match
+        if (!existingId && linkedinUrl) {
+          const { data: existing } = await supabase
+            .from("leads")
+            .select("id")
+            .eq("linkedin_url", linkedinUrl)
             .eq("user_id", user.id)
             .single();
           existingId = existing?.id || null;
@@ -132,6 +189,7 @@ export async function POST(req: NextRequest) {
           channels: {
             linkedin: !!linkedinUrl,
             email: !!email,
+            phone: !!phone,
             linkedinConnected: false,
             emailVerified: !!email,
           },
@@ -142,41 +200,43 @@ export async function POST(req: NextRequest) {
             sp_category: spCategory,
             bc_category: bcCategory,
             segment,
-            phone: lead.phone || null,
+            phone,
             personalization: {
               signal: lead.signal || null,
               metric: lead.metric || null,
               talking_point: lead.talking_point || null,
             },
             imported_at: new Date().toISOString(),
+            import_filename: filename,
+            source_platform: sourcePlatform,
           },
         };
 
         if (existingId) {
-          // Update existing lead, merge data
           await supabase
             .from("leads")
             .update(leadData)
             .eq("id", existingId);
           updated++;
+          importedLeadIds.push(existingId);
         } else {
-          // Create new lead
           const { data: newLead } = await supabase
             .from("leads")
             .insert([leadData])
             .select("id")
             .single();
           existingId = newLead?.id || null;
+          if (existingId) importedLeadIds.push(existingId);
           created++;
         }
 
-        // 3. Enroll in sequence if we have one
+        // Enroll in sequence if we have one
         if (sequenceId && existingId) {
           await insertSequenceEnrollment(supabase, {
             user_id: user.id,
             lead_id: existingId,
             sequence_id: sequenceId,
-            sequence_name: sequenceInfo?.name || "Rocket Sequence",
+            sequence_name: sequenceName || "Rocket Sequence",
             sequence_source: "rocket",
             current_step: 1,
             total_steps: sequenceInfo?.steps?.length || 13,
@@ -192,23 +252,83 @@ export async function POST(req: NextRequest) {
           enrolled++;
         }
       } catch (leadError) {
-        errors.push(`Error importing ${lead.email || "unknown"}: ${leadError}`);
+        importErrors.push(`Error importing ${lead.email || "unknown"}: ${leadError}`);
       }
     }
 
-    console.log(`[Rocket Import] Created: ${created}, Updated: ${updated}, Enrolled: ${enrolled}`);
+    // ── Combine all errors ────────────────────────────────────────
+    const allErrors = [...validationErrors, ...importErrors];
+    const durationMs = Date.now() - startTime;
+
+    // ── Save import history record ────────────────────────────────
+    const { data: importRecord } = await supabase
+      .from("rocket_imports")
+      .insert([{
+        user_id: user.id,
+        filename,
+        file_type: fileType,
+        total_rows: leads.length,
+        created_count: created,
+        updated_count: updated,
+        error_count: allErrors.length,
+        enrolled_count: enrolled,
+        sequence_id: sequenceId,
+        sequence_name: sequenceName,
+        quality_score: qualityScore,
+        column_mapping: columnMapping,
+        error_details: allErrors.slice(0, 50),
+        enrichment_status: "pending",
+        enriched_count: 0,
+        source_platform: sourcePlatform,
+        duration_ms: durationMs,
+      }])
+      .select("id")
+      .single();
+
+    // ── Track import completed ────────────────────────────────────
+    await trackEvent(supabase, user.id, {
+      eventCategory: "lead",
+      eventAction: "csv_imported",
+      numericValue: created + updated,
+      metadata: {
+        phase: "completed",
+        importId: importRecord?.id,
+        filename,
+        totalRows: leads.length,
+        created,
+        updated,
+        enrolled,
+        errors: allErrors.length,
+        skipped: validationErrors.length,
+        durationMs,
+        qualityScore: qualityScore.overall,
+        sourcePlatform,
+        hasSequence: !!sequenceInfo,
+      },
+      source: "api",
+    });
+
+    console.log(
+      `[Rocket Import] Done in ${durationMs}ms — Created: ${created}, Updated: ${updated}, Enrolled: ${enrolled}, Errors: ${allErrors.length}, Quality: ${qualityScore.overall}%`
+    );
 
     return NextResponse.json({
       success: true,
       summary: {
         total: leads.length,
+        valid: validLeads.length,
+        skipped: validationErrors.length,
         created,
         updated,
         enrolled,
         sequenceId,
-        errors: errors.length,
+        sequenceName,
+        errors: allErrors.length,
+        durationMs,
+        qualityScore,
+        importId: importRecord?.id || null,
       },
-      errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+      errors: allErrors.length > 0 ? allErrors.slice(0, 10) : undefined,
     });
   } catch (error) {
     console.error("[Rocket Import] Error:", error);
@@ -217,6 +337,46 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// ─── Quality Score Calculator ─────────────────────────────────────
+
+function computeQualityScore(leads: Record<string, unknown>[]) {
+  if (leads.length === 0) {
+    return { overall: 0, pctWithEmail: 0, pctWithCompany: 0, pctWithLinkedin: 0, pctWithClassification: 0, pctWithPhone: 0 };
+  }
+
+  let withEmail = 0;
+  let withCompany = 0;
+  let withLinkedin = 0;
+  let withClassification = 0;
+  let withPhone = 0;
+
+  for (const lead of leads) {
+    if ((lead.email as string || "").trim()) withEmail++;
+    if ((lead.company as string || "").trim()) withCompany++;
+    if ((lead.linkedin_url as string || lead.linkedinUrl as string || "").trim()) withLinkedin++;
+    if ((lead.sp_category as string || lead.bc_category as string || lead.classification as string || "").trim()) withClassification++;
+    if ((lead.phone as string || "").trim()) withPhone++;
+  }
+
+  const total = leads.length;
+  const pctWithEmail = Math.round((withEmail / total) * 100);
+  const pctWithCompany = Math.round((withCompany / total) * 100);
+  const pctWithLinkedin = Math.round((withLinkedin / total) * 100);
+  const pctWithClassification = Math.round((withClassification / total) * 100);
+  const pctWithPhone = Math.round((withPhone / total) * 100);
+
+  // Weighted overall: email 30%, company 25%, linkedin 20%, classification 15%, phone 10%
+  const overall = Math.round(
+    pctWithEmail * 0.3 +
+    pctWithCompany * 0.25 +
+    pctWithLinkedin * 0.2 +
+    pctWithClassification * 0.15 +
+    pctWithPhone * 0.1
+  );
+
+  return { overall, pctWithEmail, pctWithCompany, pctWithLinkedin, pctWithClassification, pctWithPhone };
 }
 
 // ─── Default Rocket 13-Touch Sequence Steps ──────────────────────
