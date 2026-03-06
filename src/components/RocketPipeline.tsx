@@ -100,7 +100,7 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
       case "upload": return rows.length > 0;
       case "mapping": return !!mapping.name && !!mapping.company;
       case "clean-icp": return icpResults.length > 0;
-      case "enrichment": return enrichedLeads.length > 0 || importId !== null;
+      case "enrichment": return importId !== null || enrichedLeads.length > 0;
       case "research": return Object.keys(companyResearch).length > 0;
       case "segmentation": return segments.length > 0;
       case "sequence-gen": return Object.keys(generatedSequences).length > 0;
@@ -214,9 +214,10 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
     setError(null);
 
     try {
-      // First import the leads
-      const passedLeads = icpResults
-        .filter((r) => r.bucket === "auto-enroll" || r.bucket === "review")
+      // Import all non-parked leads. If none passed, import all leads (ICP refines later with enrichment data).
+      const filteredResults = icpResults.filter((r) => r.bucket === "auto-enroll" || r.bucket === "review");
+      const leadsToImport = filteredResults.length > 0 ? filteredResults : icpResults;
+      const passedLeads = leadsToImport
         .map((r) => {
           const row = rows[parseInt(r.leadId.replace("temp-", ""))];
           const nameValue = resolveValue(row, mapping.name);
@@ -302,10 +303,11 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
     setError(null);
 
     try {
-      // Gather unique companies
+      // Gather unique companies — use non-parked leads, fall back to all if none passed
+      const nonParked = icpResults.filter((r) => r.bucket !== "parked");
+      const leadsForResearch = nonParked.length > 0 ? nonParked : icpResults;
       const companies = [...new Set(
-        icpResults
-          .filter((r) => r.bucket !== "parked")
+        leadsForResearch
           .map((r) => r.company)
           .filter(Boolean)
       )];
@@ -368,7 +370,8 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
   const runSegmentation = useCallback(() => {
     const segMap: Record<string, RocketSegment> = {};
 
-    const leadsToSegment = icpResults.filter((r) => r.bucket !== "parked");
+    const nonParkedLeads = icpResults.filter((r) => r.bucket !== "parked");
+    const leadsToSegment = nonParkedLeads.length > 0 ? nonParkedLeads : icpResults;
 
     for (const result of leadsToSegment) {
       const row = rows[parseInt(result.leadId.replace("temp-", ""))];
@@ -799,9 +802,9 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
           {/* Bucket Summary */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
             {[
-              { label: "Auto-Enroll", count: icpBuckets.autoEnroll.length, color: "#16a34a", bg: "#dcfce7", desc: "Score 70+" },
-              { label: "Review", count: icpBuckets.review.length, color: "#d97706", bg: "#fef3c7", desc: "Score 50-69" },
-              { label: "Parked", count: icpBuckets.parked.length, color: "#dc2626", bg: "#fef2f2", desc: "Score <50" },
+              { label: "Auto-Enroll", count: icpBuckets.autoEnroll.length, color: "#16a34a", bg: "#dcfce7", desc: "Score 40+" },
+              { label: "Review", count: icpBuckets.review.length, color: "#d97706", bg: "#fef3c7", desc: "Score 20-39" },
+              { label: "Parked", count: icpBuckets.parked.length, color: "#dc2626", bg: "#fef2f2", desc: "Score <20" },
             ].map((b) => (
               <div key={b.label} style={{
                 padding: 16, borderRadius: 10, background: b.bg, textAlign: "center",
@@ -843,7 +846,7 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
 
           {/* Lead List */}
           <div style={{ maxHeight: 400, overflowY: "auto" }}>
-            {icpResults.slice(0, 50).map((result) => (
+            {icpResults.map((result) => (
               <div
                 key={result.leadId}
                 style={{
@@ -906,7 +909,7 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
             Import & AI Enrichment
           </h3>
           <p style={{ fontSize: 13, color: "#64748b", marginBottom: 16 }}>
-            Import {icpBuckets.autoEnroll.length + icpBuckets.review.length} qualified leads and enrich with AI-generated personalization signals.
+            Import {(icpBuckets.autoEnroll.length + icpBuckets.review.length) || icpResults.length} leads and enrich with AI-generated personalization signals.
           </p>
 
           {!enriching && !importId && (
@@ -919,7 +922,7 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
               }}
             >
               <Sparkles size={16} />
-              Import & Enrich ({icpBuckets.autoEnroll.length + icpBuckets.review.length} leads)
+              Import & Enrich ({(icpBuckets.autoEnroll.length + icpBuckets.review.length) || icpResults.length} leads)
             </button>
           )}
 

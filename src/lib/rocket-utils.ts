@@ -162,9 +162,38 @@ export function scoreLeadICP(lead: Lead): { totalScore: number; breakdown: Array
 
   const position = (lead.position || "").toLowerCase();
   const company = (lead.company || "").toLowerCase();
+  const email = (lead.email || "").toLowerCase();
+  const linkedinUrl = (lead as unknown as Record<string, unknown>).linkedin_url as string ||
+    (lead as unknown as Record<string, unknown>).linkedinUrl as string || "";
+  const phone = (lead as unknown as Record<string, unknown>).phone as string || "";
   const rawData = (lead as unknown as Record<string, unknown>).raw_data as Record<string, unknown> | undefined;
   const companyIntel = lead.companyIntel;
 
+  // ── Data completeness baseline signals ──
+  // Raw CSV imports won't have ERP/TMS/revenue data yet.
+  // Give baseline credit for having core contact data so leads aren't all parked.
+  const dataSignals: Array<{ signal: string; points: number; field: string }> = [
+    { signal: "Has company name", points: 10, field: "company" },
+    { signal: "Has email address", points: 10, field: "email" },
+    { signal: "Has LinkedIn profile", points: 10, field: "linkedin" },
+    { signal: "Has job title", points: 5, field: "position" },
+    { signal: "Has phone number", points: 5, field: "phone" },
+  ];
+
+  for (const sig of dataSignals) {
+    let matched = false;
+    switch (sig.field) {
+      case "company": matched = company.trim().length > 0; break;
+      case "email": matched = email.trim().length > 0; break;
+      case "linkedin": matched = linkedinUrl.trim().length > 0; break;
+      case "position": matched = position.trim().length > 0; break;
+      case "phone": matched = phone.trim().length > 0; break;
+    }
+    breakdown.push({ signal: sig.signal, points: sig.points, matched });
+    if (matched) totalScore += sig.points;
+  }
+
+  // ── ICP fit signals (from enrichment data when available) ──
   for (const weight of ICP_SCORING_WEIGHTS) {
     let matched = false;
 
@@ -189,7 +218,7 @@ export function scoreLeadICP(lead: Lead): { totalScore: number; breakdown: Array
         break;
       }
       case "position": {
-        matched = /vp|vice president|director|svp|evp|chief|head of/i.test(position);
+        matched = /vp|vice president|director|svp|evp|chief|head of|president|owner|ceo|coo|cfo|cto|cpo|manager|supervisor|lead|principal/i.test(position);
         break;
       }
       case "importVolume":
@@ -207,7 +236,8 @@ export function scoreLeadICP(lead: Lead): { totalScore: number; breakdown: Array
     if (matched) totalScore += weight.points;
   }
 
-  const bucket: "auto-enroll" | "review" | "parked" = totalScore >= 70 ? "auto-enroll" : totalScore >= 50 ? "review" : "parked";
+  // Buckets: 40+ auto-enroll, 20+ review, <20 parked
+  const bucket: "auto-enroll" | "review" | "parked" = totalScore >= 40 ? "auto-enroll" : totalScore >= 20 ? "review" : "parked";
   return { totalScore, breakdown, bucket };
 }
 
