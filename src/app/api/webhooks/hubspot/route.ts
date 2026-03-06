@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { processWebhookEvent, findLeadByEmail } from "@/lib/track-touchpoint";
 import { logWebhook } from "@/lib/db-touchpoints";
+import { getTorettoServiceClient, insertRawEvent } from "@/lib/toretto/db-toretto";
+import type { TorettoSource } from "@/lib/toretto/types";
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -198,7 +200,40 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ received: true, processed });
+    // ── Toretto: parallel ingest (env-gated, non-blocking) ────
+    // Inserts raw events into toretto.raw_events for async processing.
+    // Disabled by default. Enable with TORETTO_INGEST_ENABLED=true.
+    // Never affects the Balboa response — fire-and-forget.
+    let torettoIngested = 0;
+    if (process.env.TORETTO_INGEST_ENABLED === "true") {
+      try {
+        const torettoClient = getTorettoServiceClient();
+        if (torettoClient) {
+          for (const event of events) {
+            const subscriptionType = event.subscriptionType || event.eventType || "unknown";
+            const objectId = event.objectId || "";
+            const occurredAt = event.occurredAt || event.timestamp || "";
+            const idempotencyKey = `hubspot:${subscriptionType}:${objectId}:${occurredAt}`;
+
+            const inserted = await insertRawEvent(torettoClient, {
+              source: "hubspot" as TorettoSource,
+              event_type: subscriptionType,
+              payload: event,
+              idempotency_key: idempotencyKey,
+            });
+            if (inserted) torettoIngested++;
+          }
+          if (torettoIngested > 0) {
+            console.log(`[Toretto] Ingested ${torettoIngested}/${events.length} events`);
+          }
+        }
+      } catch (torettoError) {
+        // Non-blocking: log and move on — never affects Balboa response
+        console.error("[Toretto] Ingest error (non-blocking):", torettoError);
+      }
+    }
+
+    return NextResponse.json({ received: true, processed, torettoIngested });
   } catch (error) {
     console.error("[HubSpot Webhook] Error:", error);
     return NextResponse.json(
