@@ -263,15 +263,21 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
 
       // Then enrich
       if (newImportId) {
-        const enrichRes = await fetch("/api/rocket/enrich", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ importId: newImportId }),
-        });
+        try {
+          const enrichRes = await fetch("/api/rocket/enrich", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ importId: newImportId }),
+          });
 
-        if (enrichRes.ok) {
-          const enrichData = await enrichRes.json();
-          setEnrichedLeads(enrichData.leads || []);
+          if (enrichRes.ok) {
+            const enrichData = await enrichRes.json();
+            setEnrichedLeads(enrichData.leads || []);
+          } else {
+            console.warn(`[Rocket] Enrichment failed (${enrichRes.status})`);
+          }
+        } catch (enrichErr) {
+          console.warn("[Rocket] Enrichment error:", enrichErr);
         }
       }
 
@@ -338,12 +344,14 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
                 results[company] = research as CompanyResearch;
               }
             }
+          } else {
+            console.warn(`[Rocket] Research batch failed (${res.status}) for: ${batch.join(", ")}`);
           }
-        } catch {
-          // Continue with next batch
+        } catch (err) {
+          console.warn("[Rocket] Research batch error:", err);
         }
 
-        setResearchProgress(Math.round(((i + batchSize) / companies.length) * 100));
+        setResearchProgress(Math.min(100, Math.round(((i + batchSize) / companies.length) * 100)));
       }
 
       setCompanyResearch(results);
@@ -431,10 +439,16 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
 
           if (res.ok) {
             const data = await res.json();
-            results[segment.segmentKey] = data.sequence || [];
+            if (data.sequence && data.sequence.length > 0) {
+              results[segment.segmentKey] = data.sequence;
+            } else {
+              console.warn(`[Rocket] Empty sequence for segment: ${segment.segmentKey}`);
+            }
+          } else {
+            console.warn(`[Rocket] Sequence gen failed (${res.status}) for: ${segment.segmentKey}`);
           }
-        } catch {
-          // Continue with next segment
+        } catch (err) {
+          console.warn("[Rocket] Sequence gen error:", err);
         }
 
         setGenProgress(Math.round(((i + 1) / segments.length) * 100));
@@ -453,52 +467,72 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
 
   const handleExport = useCallback(async () => {
     setError(null);
+    let exportedSegments = 0;
+    let exportErrors = 0;
+    let totalLeadsExported = 0;
+
     try {
-      // Export sequences to Supabase sequences table
+      // Export each segment's sequence + leads to Supabase via /api/rocket/import
       for (const [segKey, touches] of Object.entries(generatedSequences)) {
         const segment = segments.find((s) => s.segmentKey === segKey);
         if (!segment) continue;
 
-        const res = await fetch("/api/rocket/import", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            leads: segment.leadIds.map((id) => {
-              const row = rows[parseInt(id.replace("temp-", ""))];
-              const nameValue = resolveValue(row, mapping.name);
-              const nameParts = nameValue.split(" ");
-              return {
-                first_name: nameParts[0] || "",
-                last_name: nameParts.slice(1).join(" ") || "",
-                email: resolveValue(row, mapping.email),
-                company: resolveValue(row, mapping.company),
-                title: resolveValue(row, mapping.position),
-              };
+        try {
+          const res = await fetch("/api/rocket/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              leads: segment.leadIds.map((id) => {
+                const row = rows[parseInt(id.replace("temp-", ""))];
+                const nameValue = resolveValue(row, mapping.name);
+                const nameParts = nameValue.split(" ");
+                return {
+                  first_name: nameParts[0] || "",
+                  last_name: nameParts.slice(1).join(" ") || "",
+                  email: resolveValue(row, mapping.email),
+                  company: resolveValue(row, mapping.company),
+                  title: resolveValue(row, mapping.position),
+                };
+              }),
+              sequence: {
+                name: `Rocket: ${segKey}`,
+                description: `Auto-generated 13-touch sequence for ${segKey}`,
+                steps: touches.map((t) => ({
+                  step_number: t.touchNumber,
+                  channel: t.channel,
+                  day_offset: t.dayOffset,
+                  subject: t.subject,
+                  body: t.body,
+                })),
+              },
+              filename: `rocket-export-${segKey}.json`,
+              fileType: "json",
+              sourcePlatform: "rocket",
             }),
-            sequence: {
-              name: `Rocket: ${segKey}`,
-              description: `Auto-generated 13-touch sequence for ${segKey}`,
-              steps: touches.map((t) => ({
-                step_number: t.touchNumber,
-                channel: t.channel,
-                day_offset: t.dayOffset,
-                subject: t.subject,
-                body: t.body,
-              })),
-            },
-          }),
-        });
+          });
 
-        if (!res.ok) {
-          console.error("Export failed for segment:", segKey);
+          if (res.ok) {
+            exportedSegments++;
+            totalLeadsExported += segment.leadIds.length;
+          } else {
+            exportErrors++;
+            console.error(`Export failed for segment ${segKey}: ${res.status}`);
+          }
+        } catch (err) {
+          exportErrors++;
+          console.error(`Export error for segment ${segKey}:`, err);
         }
       }
 
       onImportComplete?.({
-        leads: segments.reduce((sum, s) => sum + s.leadIds.length, 0),
-        sequences: Object.keys(generatedSequences).length,
-        errors: 0,
+        leads: totalLeadsExported,
+        sequences: exportedSegments,
+        errors: exportErrors,
       });
+
+      if (exportErrors > 0) {
+        setError(`Exported ${exportedSegments} segments with ${exportErrors} error(s).`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
     }
@@ -815,7 +849,7 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
                 style={{
                   padding: "10px 14px", borderBottom: "1px solid #f1f5f9",
                   display: "flex", alignItems: "center", gap: 12,
-                  cursor: "pointer",
+                  cursor: "pointer", position: "relative",
                 }}
                 onClick={() => setIcpExpanded(icpExpanded === result.leadId ? null : result.leadId)}
               >
