@@ -14,7 +14,8 @@ import {
 } from "@/lib/rocket-utils";
 import {
   PIPELINE_STAGES, STRATEGIC_PRIORITIES, BUSINESS_CHALLENGES,
-  PERSONA_OPENERS, ANTI_AI_RULES, BANNED_WORDS,
+  PERSONA_OPENERS, ANTI_AI_RULES, BANNED_WORDS, SEQUENCE_TEMPLATE_13_TOUCH,
+  DISCOVERY_QUESTIONS, PREFERRED_WORDS,
 } from "@/lib/rocket-constants";
 import type {
   RocketColumnMapping, RocketPipelineStage, RocketPipelineState,
@@ -365,6 +366,97 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
     }
   }, [icpResults, enrichedLeads, rows, mapping, importId]);
 
+  // Skip research with default SP/BC assignments
+  const skipResearchWithDefaults = useCallback(() => {
+    const nonParked = icpResults.filter((r) => r.bucket !== "parked");
+    const leadsForResearch = nonParked.length > 0 ? nonParked : icpResults;
+    const companies = [...new Set(leadsForResearch.map((r) => r.company).filter(Boolean))];
+    const defaults: Record<string, CompanyResearch> = {};
+    for (const company of companies) {
+      defaults[company] = {
+        companyName: company,
+        assignedSP: "SP2" as const,
+        assignedBC: "BC3" as const,
+        spReasoning: "Default assignment — run AI research for detailed analysis",
+        bcReasoning: "Default assignment — run AI research for detailed analysis",
+        signals: [],
+        verticalNotes: "",
+      };
+    }
+    setCompanyResearch(defaults);
+  }, [icpResults]);
+
+  // Skip sequence generation with template-based sequences
+  const skipSequenceGenWithTemplates = useCallback(() => {
+    const results: Record<string, SequenceTouch[]> = {};
+
+    for (const segment of segments) {
+      const persona = PERSONA_OPENERS[segment.persona];
+      const companyNames = segment.leadIds
+        .map((id) => {
+          const row = rows[parseInt(id.replace("temp-", ""))];
+          return resolveValue(row, mapping.company);
+        })
+        .filter(Boolean);
+      const sampleCompany = companyNames[0] || "your company";
+      const research = companyResearch[sampleCompany];
+      const spLabel = research?.assignedSP ? STRATEGIC_PRIORITIES[research.assignedSP]?.label : "Digital Transformation";
+      const bcLabel = research?.assignedBC ? BUSINESS_CHALLENGES[research.assignedBC]?.label : "Manual Procurement";
+
+      const touches: SequenceTouch[] = SEQUENCE_TEMPLATE_13_TOUCH.map((t) => {
+        let subject = "";
+        let body = "";
+        let label = t.label;
+
+        if (t.channel === "email") {
+          switch (t.touchNumber) {
+            case 1: // Cold email
+              subject = `${bcLabel.split(" ")[0].toLowerCase()} question`;
+              body = `Most ${persona?.label || "supply chain leaders"} we talk to are dealing with ${bcLabel.toLowerCase()}. Their teams spend hours on manual work that should be automated. Curious if that's on your radar — we've helped similar companies cut that workload by 60%. Worth a quick look?`;
+              break;
+            case 3: // Follow-up
+              subject = `re: quick follow up`;
+              body = `Wanted to circle back. ${sampleCompany} caught my attention because of your ${spLabel.toLowerCase()} focus. We've helped distributors your size eliminate 40+ hours/week of manual supply chain work. Happy to show you how in 15 min.`;
+              break;
+            case 8: // Case study
+              subject = `how others handle this`;
+              body = `Talked to a distributor your size last month — they were processing 70K+ SKUs across 500 suppliers manually. After switching to automated procurement intelligence, they cut container processing time by 60%. Want me to send the case study?`;
+              break;
+            case 10: // Break-up
+              subject = `closing the loop`;
+              body = `I've reached out a few times and haven't heard back, which usually means one of three things: timing's off, not a priority, or you've already solved it. Totally fine either way — just don't want to keep pinging if it's not useful. Let me know.`;
+              break;
+            case 12: // Objection handling
+              subject = `one more thought`;
+              body = `Even teams with solid ERPs tell us the gap isn't the system — it's the intelligence layer between systems. When your ERP, TMS, and suppliers don't talk in real-time, your team fills that gap manually. That's what we fix. Worth 15 min?`;
+              break;
+          }
+        } else if (t.channel === "call") {
+          const questionIdx = Math.min(t.touchNumber - 1, DISCOVERY_QUESTIONS.length - 1);
+          const question = DISCOVERY_QUESTIONS[questionIdx >= 0 ? questionIdx : 0];
+          body = `Opening: "Hi, this is [Name] from Nauta. ${persona?.opener || "Quick question about your supply chain."}" → Discovery: "${question.question}" → Listen for: ${question.listenFor}. Close: "Would it make sense to show you how we handle that? 15 minutes."`;
+        } else {
+          // LinkedIn
+          body = `Connection request: "Hi [Name], noticed ${sampleCompany} is focused on ${spLabel.toLowerCase()}. We work with distributors tackling similar challenges — thought it'd be worth connecting."`;
+        }
+
+        return {
+          touchNumber: t.touchNumber,
+          channel: t.channel,
+          dayOffset: t.dayOffset,
+          label,
+          subject: subject || undefined,
+          body,
+          researchFieldUsed: t.channel === "email" ? `touch_${t.touchNumber}_template` : "call_script",
+        } as SequenceTouch;
+      });
+
+      results[segment.segmentKey] = touches;
+    }
+
+    setGeneratedSequences(results);
+  }, [segments, rows, mapping, companyResearch]);
+
   // ── Segmentation (Stage 6) ────────────────────────────────────
 
   const runSegmentation = useCallback(() => {
@@ -465,6 +557,46 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
       setGenerating(false);
     }
   }, [segments, rows, mapping, companyResearch]);
+
+  // ── Quality Checklist (auto-populate on review stage) ────────
+
+  useEffect(() => {
+    if (stage === "review-export" && Object.keys(generatedSequences).length > 0 && Object.keys(qualityChecklist).length === 0) {
+      const checks: Record<string, boolean> = {};
+      let allSubjectsOk = true;
+      let allWordCountsOk = true;
+      let noBannedWords = true;
+      let hasContractions = false;
+
+      for (const touches of Object.values(generatedSequences)) {
+        for (const t of touches) {
+          if (t.subject) {
+            const wordCount = t.subject.split(/\s+/).length;
+            if (wordCount > ANTI_AI_RULES.subjectMaxWords) allSubjectsOk = false;
+          }
+          const bodyWords = t.body.split(/\s+/).length;
+          if (t.channel === "email") {
+            const limit = t.touchNumber === 1 ? ANTI_AI_RULES.email1MaxWords : ANTI_AI_RULES.followUpMaxWords;
+            if (bodyWords > limit) allWordCountsOk = false;
+          }
+          const bodyLower = t.body.toLowerCase();
+          for (const banned of BANNED_WORDS) {
+            if (bodyLower.includes(banned.toLowerCase())) noBannedWords = false;
+          }
+          if (/don't|isn't|we're|that's|won't|can't|hasn't|didn't|wouldn't/i.test(t.body)) hasContractions = true;
+        }
+      }
+
+      checks["Subject lines ≤ 4 words"] = allSubjectsOk;
+      checks["Email word counts within limits"] = allWordCountsOk;
+      checks["No banned words detected"] = noBannedWords;
+      checks["Natural contractions present"] = hasContractions;
+      checks[`${Object.keys(generatedSequences).length} segments with sequences`] = Object.keys(generatedSequences).length > 0;
+      checks[`${segments.reduce((s, seg) => s + seg.leadIds.length, 0)} leads ready for enrollment`] = true;
+
+      setQualityChecklist(checks);
+    }
+  }, [stage, generatedSequences, qualityChecklist, segments]);
 
   // ── Export (Stage 8) ──────────────────────────────────────────
 
@@ -913,17 +1045,33 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
           </p>
 
           {!enriching && !importId && (
-            <button
-              onClick={handleImportAndEnrich}
-              style={{
-                padding: "12px 24px", fontSize: 14, fontWeight: 600,
-                background: "var(--balboa-navy)", color: "white", border: "none",
-                borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-              }}
-            >
-              <Sparkles size={16} />
-              Import & Enrich ({(icpBuckets.autoEnroll.length + icpBuckets.review.length) || icpResults.length} leads)
-            </button>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button
+                onClick={handleImportAndEnrich}
+                style={{
+                  padding: "12px 24px", fontSize: 14, fontWeight: 600,
+                  background: "var(--balboa-navy)", color: "white", border: "none",
+                  borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+                }}
+              >
+                <Sparkles size={16} />
+                Import & Enrich (AI)
+              </button>
+              <button
+                onClick={() => { setImportId("skip-enrichment"); }}
+                style={{
+                  padding: "12px 24px", fontSize: 14, fontWeight: 600,
+                  background: "white", color: "var(--balboa-navy)", border: "1px solid #e2e8f0",
+                  borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+                }}
+              >
+                <ArrowRight size={16} />
+                Skip — Continue Without Enrichment
+              </button>
+              <p style={{ fontSize: 11, color: "#94a3b8", width: "100%", marginTop: 4 }}>
+                AI enrichment requires API credits. &quot;Skip&quot; moves leads forward without AI personalization signals.
+              </p>
+            </div>
           )}
 
           {enriching && (
@@ -966,17 +1114,33 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
           </p>
 
           {!researching && Object.keys(companyResearch).length === 0 && (
-            <button
-              onClick={runCompanyResearch}
-              style={{
-                padding: "12px 24px", fontSize: 14, fontWeight: 600,
-                background: "var(--balboa-navy)", color: "white", border: "none",
-                borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-              }}
-            >
-              <Search size={16} />
-              Run Company Research
-            </button>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button
+                onClick={runCompanyResearch}
+                style={{
+                  padding: "12px 24px", fontSize: 14, fontWeight: 600,
+                  background: "var(--balboa-navy)", color: "white", border: "none",
+                  borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+                }}
+              >
+                <Search size={16} />
+                Run Company Research (AI)
+              </button>
+              <button
+                onClick={skipResearchWithDefaults}
+                style={{
+                  padding: "12px 24px", fontSize: 14, fontWeight: 600,
+                  background: "white", color: "var(--balboa-navy)", border: "1px solid #e2e8f0",
+                  borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+                }}
+              >
+                <ArrowRight size={16} />
+                Skip — Use Defaults
+              </button>
+              <p style={{ fontSize: 11, color: "#94a3b8", width: "100%", marginTop: 4 }}>
+                AI research requires API credits. &quot;Skip&quot; assigns default SP2/BC3 to all companies.
+              </p>
+            </div>
           )}
 
           {researching && (
@@ -1101,17 +1265,33 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
           </p>
 
           {!generating && Object.keys(generatedSequences).length === 0 && (
-            <button
-              onClick={runSequenceGeneration}
-              style={{
-                padding: "12px 24px", fontSize: 14, fontWeight: 600,
-                background: "var(--balboa-navy)", color: "white", border: "none",
-                borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-              }}
-            >
-              <Wand2 size={16} />
-              Generate Sequences ({segments.length} segments)
-            </button>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button
+                onClick={runSequenceGeneration}
+                style={{
+                  padding: "12px 24px", fontSize: 14, fontWeight: 600,
+                  background: "var(--balboa-navy)", color: "white", border: "none",
+                  borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+                }}
+              >
+                <Wand2 size={16} />
+                Generate with AI ({segments.length} segments)
+              </button>
+              <button
+                onClick={skipSequenceGenWithTemplates}
+                style={{
+                  padding: "12px 24px", fontSize: 14, fontWeight: 600,
+                  background: "white", color: "var(--balboa-navy)", border: "1px solid #e2e8f0",
+                  borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+                }}
+              >
+                <ArrowRight size={16} />
+                Skip — Use Templates
+              </button>
+              <p style={{ fontSize: 11, color: "#94a3b8", width: "100%", marginTop: 4 }}>
+                AI generation requires API credits. &quot;Templates&quot; creates 13-touch sequences from playbook templates.
+              </p>
+            </div>
           )}
 
           {generating && (
