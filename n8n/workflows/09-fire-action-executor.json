@@ -1,0 +1,199 @@
+{
+  "name": "09 - Fire Action Executor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "fire-schedule",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BALBOA_URL }}/api/fire/execute",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "secret",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "fire-execute",
+      "name": "Fetch Pending Actions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.actions.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "fire-check-actions",
+      "name": "Has Actions?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "actions",
+        "options": {}
+      },
+      "id": "fire-split-actions",
+      "name": "Split Actions",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [860, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.actionType }}",
+              "value2": "send_email",
+              "operation": "equals"
+            }
+          ]
+        }
+      },
+      "id": "fire-route-email",
+      "name": "Is Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1080, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.actionType }}",
+              "value2": "notify",
+              "operation": "equals"
+            }
+          ]
+        }
+      },
+      "id": "fire-route-slack",
+      "name": "Is Slack?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.BALBOA_URL }}/api/fire/actions",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "actionId",
+              "value": "={{ $json.actionId }}"
+            },
+            {
+              "name": "status",
+              "value": "completed"
+            },
+            {
+              "name": "executionResult",
+              "value": "={{ JSON.stringify({ executedBy: 'n8n', timestamp: new Date().toISOString() }) }}"
+            }
+          ]
+        }
+      },
+      "id": "fire-mark-complete",
+      "name": "Mark Completed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 200]
+    },
+    {
+      "parameters": {},
+      "id": "fire-noop",
+      "name": "No Actions",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [860, 400]
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [{ "node": "Fetch Pending Actions", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Pending Actions": {
+      "main": [
+        [{ "node": "Has Actions?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Has Actions?": {
+      "main": [
+        [{ "node": "Split Actions", "type": "main", "index": 0 }],
+        [{ "node": "No Actions", "type": "main", "index": 0 }]
+      ]
+    },
+    "Split Actions": {
+      "main": [
+        [
+          { "node": "Is Email?", "type": "main", "index": 0 },
+          { "node": "Is Slack?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Is Email?": {
+      "main": [
+        [{ "node": "Mark Completed", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Is Slack?": {
+      "main": [
+        [{ "node": "Mark Completed", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "description": "Polls /api/fire/execute every 15 minutes to process autonomous Fire actions. Routes actions to Gmail, LinkedIn (Amplemarket), or Slack based on action_type. Marks actions as completed after execution."
+  }
+}

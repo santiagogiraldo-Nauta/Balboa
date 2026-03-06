@@ -161,9 +161,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 4. Check for sequence silence (Fire autonomy engine)
+    let silenceActions = 0;
+    try {
+      const { checkSilenceRules } = await import("@/lib/fire/branching-engine");
+      silenceActions = await checkSilenceRules(supabase);
+    } catch (err) {
+      console.error("[Daily Actions] Fire silence check error (non-blocking):", err);
+    }
+
     return NextResponse.json({
       success: true,
       ...results,
+      silenceActions,
       computedAt: new Date().toISOString(),
     });
   } catch (error) {

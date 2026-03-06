@@ -61,6 +61,20 @@ export async function trackTouchpoint(
       actionsCreated = await checkForSignals(supabase, input);
     }
 
+    // 4. Run Fire autonomy engine (if any fire-enabled enrollments exist)
+    // Dynamic import + try/catch = non-blocking. If Fire crashes, tracking still works.
+    if (input.leadId) {
+      try {
+        const { checkFireRules } = await import("./fire");
+        const fireResult = await checkFireRules(supabase, input, touchpoint.id);
+        if (fireResult.actionsCreated > 0) {
+          actionsCreated += fireResult.actionsCreated;
+        }
+      } catch (err) {
+        console.error("[track-touchpoint] Fire engine error (non-blocking):", err);
+      }
+    }
+
     return {
       success: true,
       touchpointId: touchpoint.id,

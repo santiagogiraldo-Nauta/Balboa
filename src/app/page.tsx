@@ -5,7 +5,7 @@ import Papa from "papaparse";
 import JSZip from "jszip";
 import {
   Upload, Users, CheckCircle, Clock,
-  Target, Send, Sparkles, Rocket,
+  Target, Send, Sparkles, Rocket, Flame,
   LogOut, Mail, Bell, BarChart3, Settings,
 } from "lucide-react";
 import type { Lead, Deal, Account, DraftMessage, CallLog, CallOutcome, VideoPrep, PrepKit, BattleCard, SupportedLanguage, SidebarSection } from "@/lib/types";
@@ -30,6 +30,7 @@ import DealsSection from "@/components/DealsSection";
 import InsightsSection from "@/components/InsightsSection";
 import SettingsSection from "@/components/SettingsSection";
 import RocketImport from "@/components/RocketImport";
+import FireControlPanel from "@/components/FireControlPanel";
 import { getClientConfig } from "@/lib/config-client";
 import { mockDeals, mockAccounts } from "@/lib/mock-phase2";
 import { mockEvents } from "@/lib/mock-events";
@@ -1108,6 +1109,7 @@ export default function Dashboard() {
     deals: { title: "Deals", subtitle: "Pipeline, buyer journeys, and stakeholder engagement" },
     insights: { title: "Insights", subtitle: "AI-detected patterns and deal outcome analysis" },
     rocket: { title: "Rocket", subtitle: "CSV import and AI enrichment pipeline" },
+    fire: { title: "Fire", subtitle: "Autonomous sequences, branching rules, and AI classification" },
     settings: { title: "Settings", subtitle: "Compliance, privacy, and AI agents" },
   };
 
@@ -1190,6 +1192,13 @@ export default function Dashboard() {
             className={`sidebar-item ${sidebarSection === "rocket" ? "active" : ""}`}>
             <Rocket className="w-5 h-5" />
             <span className="tooltip">Rocket</span>
+          </button>
+
+          {/* Fire */}
+          <button onClick={() => navigateTo("fire")}
+            className={`sidebar-item ${sidebarSection === "fire" ? "active" : ""}`}>
+            <Flame className="w-5 h-5" />
+            <span className="tooltip">Fire</span>
           </button>
 
           {/* Settings */}
@@ -1464,6 +1473,13 @@ export default function Dashboard() {
                 }
               }}
             />
+          </div>
+        )}
+
+        {/* === FIRE === */}
+        {sidebarSection === "fire" && (
+          <div className="p-6">
+            <FireControlPanel userId={userId || ""} />
           </div>
         )}
 

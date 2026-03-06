@@ -32,43 +32,45 @@ export async function POST(req: NextRequest) {
     { db: { schema: "public" }, auth: { persistSession: false } }
   );
 
-  // Get HubSpot integration config
-  const { data: integration } = await supabase
-    .from("integration_configs")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("provider", "hubspot")
-    .eq("status", "connected")
-    .single();
+  // Try to get HubSpot access token:
+  // 1. HUBSPOT_ACCESS_TOKEN env var (private app token — simplest)
+  // 2. integration_configs DB row (OAuth flow)
+  let accessToken = process.env.HUBSPOT_ACCESS_TOKEN || "";
 
-  if (!integration) {
-    return NextResponse.json({ error: "HubSpot not connected for this user" }, { status: 400 });
-  }
+  if (!accessToken) {
+    const { data: integration } = await supabase
+      .from("integration_configs")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("platform", "hubspot")
+      .eq("status", "connected")
+      .single();
 
-  const config = integration.config as Record<string, unknown>;
-  let accessToken = config.access_token as string;
-  const refreshToken = config.refresh_token as string;
-  const expiresAt = config.expires_at as number;
+    if (!integration) {
+      return NextResponse.json(
+        { error: "HubSpot not connected. Set HUBSPOT_ACCESS_TOKEN env var or connect via OAuth." },
+        { status: 400 }
+      );
+    }
 
-  // Refresh token if expired
-  if (Date.now() > expiresAt - 300000) {
-    try {
-      const newTokens = await refreshHubSpotToken(refreshToken);
-      accessToken = newTokens.accessToken;
+    const config = integration.config as Record<string, unknown>;
+    accessToken = config.access_token as string;
+    const refreshToken = config.refresh_token as string;
+    const expiresAt = config.expires_at as number;
 
-      await supabase
-        .from("integration_configs")
-        .update({
-          config: {
-            ...config,
-            access_token: newTokens.accessToken,
-            refresh_token: newTokens.refreshToken,
-            expires_at: newTokens.expiresAt,
-          },
-        })
-        .eq("id", integration.id);
-    } catch (e) {
-      return NextResponse.json({ error: "Token refresh failed: " + String(e) }, { status: 401 });
+    if (Date.now() > expiresAt - 300000) {
+      try {
+        const newTokens = await refreshHubSpotToken(refreshToken);
+        accessToken = newTokens.accessToken;
+        await supabase
+          .from("integration_configs")
+          .update({
+            config: { ...config, access_token: newTokens.accessToken, refresh_token: newTokens.refreshToken, expires_at: newTokens.expiresAt },
+          })
+          .eq("id", integration.id);
+      } catch (e) {
+        return NextResponse.json({ error: "Token refresh failed: " + String(e) }, { status: 401 });
+      }
     }
   }
 
