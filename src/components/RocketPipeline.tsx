@@ -5,7 +5,7 @@ import {
   Upload, Table, Filter, Sparkles, Search, LayoutGrid, Wand2,
   CheckCircle, ChevronRight, ChevronDown, AlertCircle, X, ArrowRight,
   ArrowLeft, RefreshCw, FileText, Zap, Users, Tag, Eye, Copy,
-  Download, Check, Clock, BarChart3,
+  Download, Check, Clock, BarChart3, Loader2,
 } from "lucide-react";
 import {
   parseCSV, parseJSON, detectColumns, resolveValue, computeQualityScore,
@@ -91,6 +91,9 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
   // Review
   const [qualityChecklist, setQualityChecklist] = useState<Record<string, boolean>>({});
   const [previewSegment, setPreviewSegment] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportDone, setExportDone] = useState(false);
+  const [exportSummary, setExportSummary] = useState<{ leads: number; sequences: number; errors: number } | null>(null);
 
   // ── Navigation ────────────────────────────────────────────────
 
@@ -602,6 +605,8 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
 
   const handleExport = useCallback(async () => {
     setError(null);
+    setExporting(true);
+    setExportDone(false);
     let exportedSegments = 0;
     let exportErrors = 0;
     let totalLeadsExported = 0;
@@ -627,6 +632,8 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
                   email: resolveValue(row, mapping.email),
                   company: resolveValue(row, mapping.company),
                   title: resolveValue(row, mapping.position),
+                  phone: resolveValue(row, mapping.phone),
+                  linkedin_url: resolveValue(row, mapping.linkedinUrl),
                 };
               }),
               sequence: {
@@ -650,14 +657,18 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
             exportedSegments++;
             totalLeadsExported += segment.leadIds.length;
           } else {
+            const errBody = await res.json().catch(() => ({}));
             exportErrors++;
-            console.error(`Export failed for segment ${segKey}: ${res.status}`);
+            console.error(`Export failed for segment ${segKey}: ${res.status}`, errBody);
           }
         } catch (err) {
           exportErrors++;
           console.error(`Export error for segment ${segKey}:`, err);
         }
       }
+
+      setExportSummary({ leads: totalLeadsExported, sequences: exportedSegments, errors: exportErrors });
+      setExportDone(true);
 
       onImportComplete?.({
         leads: totalLeadsExported,
@@ -670,50 +681,12 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExporting(false);
     }
   }, [generatedSequences, segments, rows, mapping, onImportComplete]);
 
-  // ── Quality Check ─────────────────────────────────────────────
-
-  const runQualityCheck = useCallback(() => {
-    const checks: Record<string, boolean> = {};
-
-    for (const [segKey, touches] of Object.entries(generatedSequences)) {
-      const emailTouches = touches.filter((t) => t.channel === "email");
-
-      // Subject word count
-      const subjectOk = emailTouches.every((t) =>
-        !t.subject || t.subject.split(/\s+/).length <= ANTI_AI_RULES.subjectMaxWords
-      );
-      checks[`${segKey}_subject_length`] = subjectOk;
-
-      // Body word count
-      const bodyOk = emailTouches.every((t, i) => {
-        const maxWords = i === 0 ? ANTI_AI_RULES.email1MaxWords : ANTI_AI_RULES.followUpMaxWords;
-        return t.body.split(/\s+/).length <= maxWords;
-      });
-      checks[`${segKey}_body_length`] = bodyOk;
-
-      // Banned words
-      const noBanned = emailTouches.every((t) =>
-        !BANNED_WORDS.some((bw) => t.body.toLowerCase().includes(bw.toLowerCase()))
-      );
-      checks[`${segKey}_no_banned`] = noBanned;
-
-      // Angle rotation
-      const fields = touches.map((t) => t.researchFieldUsed).filter(Boolean);
-      const uniqueFields = new Set(fields);
-      checks[`${segKey}_angle_rotation`] = uniqueFields.size >= Math.min(fields.length, 5);
-    }
-
-    setQualityChecklist(checks);
-  }, [generatedSequences]);
-
-  useEffect(() => {
-    if (stage === "review-export" && Object.keys(generatedSequences).length > 0) {
-      runQualityCheck();
-    }
-  }, [stage, generatedSequences, runQualityCheck]);
+  // (quality checklist is auto-populated via useEffect above when entering review-export stage)
 
   // ── ICP bucket stats ──────────────────────────────────────────
 
@@ -1400,7 +1373,7 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
                       <AlertCircle size={14} style={{ color: "#dc2626" }} />
                     )}
                     <span style={{ color: passed ? "#334155" : "#dc2626" }}>
-                      {check.replace(/_/g, " ").replace(/^[^_]+\s/, "")}
+                      {check}
                     </span>
                   </div>
                 ))}
@@ -1434,19 +1407,48 @@ export default function RocketPipeline({ onImportComplete }: RocketPipelineProps
             </div>
           </div>
 
-          {/* Export Button */}
-          <button
-            onClick={handleExport}
-            style={{
-              padding: "14px 28px", fontSize: 14, fontWeight: 700,
-              background: "var(--balboa-navy)", color: "white", border: "none",
-              borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center",
-              gap: 8, margin: "0 auto",
-            }}
-          >
-            <Download size={16} />
-            Export & Enroll Leads
-          </button>
+          {/* Export Button + Status */}
+          {exportDone && exportSummary ? (
+            <div style={{
+              padding: 16, borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0",
+              textAlign: "center",
+            }}>
+              <CheckCircle size={28} style={{ color: "#16a34a", marginBottom: 8 }} />
+              <div style={{ fontWeight: 700, fontSize: 15, color: "#166534", marginBottom: 4 }}>
+                Export Complete
+              </div>
+              <div style={{ fontSize: 13, color: "#15803d" }}>
+                {exportSummary.leads} leads enrolled across {exportSummary.sequences} sequences
+                {exportSummary.errors > 0 && (
+                  <span style={{ color: "#dc2626" }}> · {exportSummary.errors} error(s)</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              style={{
+                padding: "14px 28px", fontSize: 14, fontWeight: 700,
+                background: exporting ? "#94a3b8" : "var(--balboa-navy)", color: "white", border: "none",
+                borderRadius: 8, cursor: exporting ? "not-allowed" : "pointer", display: "flex", alignItems: "center",
+                gap: 8, margin: "0 auto", opacity: exporting ? 0.7 : 1,
+                transition: "all 0.2s",
+              }}
+            >
+              {exporting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Exporting…
+                </>
+              ) : (
+                <>
+                  <Download size={16} />
+                  Export & Enroll Leads
+                </>
+              )}
+            </button>
+          )}
         </div>
       )}
 
