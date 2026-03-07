@@ -51,7 +51,7 @@ export async function refreshHubSpotToken(refreshToken: string): Promise<HubSpot
 
 // ─── API Helpers ─────────────────────────────────────────────────
 
-async function hubspotFetch(
+export async function hubspotFetch(
   path: string,
   accessToken: string,
   opts?: {
