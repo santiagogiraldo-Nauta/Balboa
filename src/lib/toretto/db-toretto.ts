@@ -425,11 +425,11 @@ export async function findLeadByLinkedIn(
 export async function findAccountByDomain(
   supabase: SupabaseClient,
   domain: string
-): Promise<{ id: string; website: string; name: string } | null> {
+): Promise<{ id: string; website: string; company_name: string } | null> {
   // Only 10 accounts — fetch all and match domain in-app
   const { data, error } = await supabase
     .from("accounts")
-    .select("id, website, name")
+    .select("id, website, company_name")
     .not("website", "is", null);
 
   if (error || !data?.length) return null;
