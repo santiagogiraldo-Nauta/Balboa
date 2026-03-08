@@ -96,6 +96,9 @@ export type MatchMethod =
   | "hubspot_deal_id"
   | "linkedin_url"
   | "hubspot_contact_id"
+  | "lead_fk_propagation"
+  | "deal_account_cascade"
+  | "account_sole_deal"
   | "unresolved";
 
 export type QueueStatus = "pending" | "resolved" | "abandoned";

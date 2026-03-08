@@ -5,7 +5,7 @@
 //
 // Resolution paths (based on live data 2026-03-06):
 //   Contact: email exact → linkedin_url → hubspot_contact_id (dormant)
-//   Account: email domain → accounts.website (10 accounts)
+//   Account: email domain → accounts.website (920 accounts)
 //   Deal:    hubspot_deal_id exact match (956 deals)
 //
 // Constraints:
@@ -44,6 +44,9 @@ import {
   findLeadByHubSpotContactId,
   findAccountByDomain,
   findDealByHubSpotId,
+  findLeadFKs,
+  findDealAccountId,
+  findSoleDealForAccount,
 } from "./db-toretto";
 
 // ─── Identifier Extraction ───────────────────────────────────
@@ -97,6 +100,11 @@ export function extractIdentifiers(
 
   // ── HubSpot Deal ID
   if (source === "hubspot" && result.objectType === "DEAL" && result.objectId) {
+    result.hubspotDealId = result.objectId;
+  }
+  // Fallback: infer from event_type when objectType is absent
+  // HubSpot deal.propertyChange → objectId IS the deal ID
+  if (source === "hubspot" && !result.hubspotDealId && result.objectId && eventType.startsWith("deal.")) {
     result.hubspotDealId = result.objectId;
   }
   result.hubspotDealId =
@@ -344,9 +352,27 @@ export function normalizeEvent(
 
   const sourceId = buildSourceId(source, eventType, payload);
 
+  // Upgrade: deal.propertyChange with propertyName=dealstage → deal_stage_change
+  // This is critical for the deal_stage_velocity signal
+  let upgradedType = interactionType;
+  if (
+    source === "hubspot" &&
+    eventType === "deal.propertyChange" &&
+    coerceString(payload.propertyName) === "dealstage"
+  ) {
+    upgradedType = "deal_stage_change";
+  }
+
+  // Upgrade: replied + positive sentiment → positive_reply
+  // This carries 2x weight in intent_buying_activity signal (8 vs 4)
+  const finalType =
+    upgradedType === "replied" && sentiment === "positive"
+      ? "positive_reply"
+      : upgradedType;
+
   return {
     channel,
-    interactionType,
+    interactionType: finalType,
     direction,
     occurredAt,
     subject,
@@ -394,6 +420,62 @@ export async function resolveRawEvent(
     result.contact = contactResult.resolution;
     result.account = accountResult.resolution;
     result.deal = dealResult.resolution;
+
+    // Step 2.5: FK Propagation — enrich unresolved entities from lead/deal FKs
+    // When contact resolves to a lead, propagate the lead's deal_id and account_id.
+    // When deal resolves (directly or via propagation), cascade its account_id.
+    if (result.contact?.canonicalId) {
+      const leadFKs = await findLeadFKs(supabase, result.contact.canonicalId);
+      if (leadFKs) {
+        // Propagate deal_id from lead if deal wasn't resolved directly
+        if (!result.deal?.canonicalId && leadFKs.deal_id) {
+          result.deal = {
+            entityType: "deal",
+            canonicalId: leadFKs.deal_id,
+            confidence: "high",
+            method: "lead_fk_propagation",
+          };
+        }
+        // Propagate account_id from lead if account wasn't resolved directly
+        if (!result.account?.canonicalId && leadFKs.account_id) {
+          result.account = {
+            entityType: "account",
+            canonicalId: leadFKs.account_id,
+            confidence: "high",
+            method: "lead_fk_propagation",
+          };
+        }
+      }
+    }
+
+    // Cascade: if deal resolved but account still unresolved, inherit from deal
+    if (result.deal?.canonicalId && !result.account?.canonicalId) {
+      const dealAcctId = await findDealAccountId(supabase, result.deal.canonicalId);
+      if (dealAcctId) {
+        result.account = {
+          entityType: "account",
+          canonicalId: dealAcctId,
+          confidence: "medium",
+          method: "deal_account_cascade",
+        };
+      }
+    }
+
+    // Step 2.6: Single-deal-account inference
+    // If account resolved but deal still unresolved, and the account has
+    // exactly 1 deal, deterministically assign it. If 0 or 2+ deals exist,
+    // leave deal_id null (ambiguous).
+    if (result.account?.canonicalId && !result.deal?.canonicalId) {
+      const soleDealId = await findSoleDealForAccount(supabase, result.account.canonicalId);
+      if (soleDealId) {
+        result.deal = {
+          entityType: "deal",
+          canonicalId: soleDealId,
+          confidence: "medium",
+          method: "account_sole_deal",
+        };
+      }
+    }
 
     // Step 3: Determine best confidence
     const confidences: MatchConfidence[] = [

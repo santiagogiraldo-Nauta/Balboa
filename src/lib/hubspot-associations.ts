@@ -24,10 +24,19 @@ export interface HubSpotCompanySearchResult {
   name: string;
 }
 
+export interface CompanyBatchReadResult {
+  status: string;
+  results: Array<{
+    id: string;
+    properties: Record<string, string | null>;
+  }>;
+}
+
 interface AssociationBatchResult {
   results: Array<{
     from: { id: string };
-    to: Array<{ toObjectId: string; associationTypes: unknown[] }>;
+    // V3 API returns { id, type }, V4 returns { toObjectId, associationTypes }
+    to: Array<{ id?: string; toObjectId?: string; type?: string; associationTypes?: unknown[] }>;
   }>;
 }
 
@@ -307,7 +316,10 @@ export async function getDealCompanyAssociations(
 
       if (response.results) {
         for (const item of response.results) {
-          const companyIds = item.to?.map((t) => t.toObjectId) || [];
+          // Support both V3 ({ id, type }) and V4 ({ toObjectId }) response formats
+          const companyIds = (item.to || [])
+            .map((t) => t.toObjectId || t.id)
+            .filter((id): id is string => !!id);
           result.set(item.from.id, companyIds);
         }
       }
@@ -315,6 +327,63 @@ export async function getDealCompanyAssociations(
       // Log and continue — partial results are acceptable
       console.error(
         `[backfill] Failed to fetch deal→company associations for batch starting at index ${i}`
+      );
+    }
+  }
+
+  return result;
+}
+
+// ─── Batch Read Company Properties ───────────────────────────────
+
+/**
+ * Batch-read company properties (name, domain) from HubSpot.
+ * Returns Map<hubspotCompanyId, { name, domain }>.
+ *
+ * Chunks input into batches of batchSize (max 100).
+ */
+export async function getCompanyProperties(
+  accessToken: string,
+  companyIds: string[],
+  opts?: { batchSize?: number; maxApiCalls?: number }
+): Promise<Map<string, { name: string; domain: string }>> {
+  const batchSize = Math.min(opts?.batchSize ?? 100, 100);
+  const maxCalls = opts?.maxApiCalls ?? 50;
+  const result = new Map<string, { name: string; domain: string }>();
+  let callsUsed = 0;
+
+  for (let i = 0; i < companyIds.length; i += batchSize) {
+    if (callsUsed >= maxCalls) break;
+
+    const chunk = companyIds.slice(i, i + batchSize);
+    await enforceRateLimit();
+    _apiCallCount++;
+    callsUsed++;
+
+    try {
+      const response = (await hubspotFetch(
+        "/crm/v3/objects/companies/batch/read",
+        accessToken,
+        {
+          method: "POST",
+          body: {
+            properties: ["name", "domain"],
+            inputs: chunk.map((id) => ({ id })),
+          },
+        }
+      )) as CompanyBatchReadResult;
+
+      if (response.results) {
+        for (const company of response.results) {
+          result.set(company.id, {
+            name: company.properties.name || "",
+            domain: company.properties.domain || "",
+          });
+        }
+      }
+    } catch {
+      console.error(
+        `[backfill] Failed to batch-read company properties starting at index ${i}`
       );
     }
   }

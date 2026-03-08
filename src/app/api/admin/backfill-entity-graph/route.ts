@@ -4,6 +4,7 @@ import {
   searchCompanyByDomain,
   pullContactAssociations,
   getDealCompanyAssociations,
+  getCompanyProperties,
   getApiCallCount,
   resetApiCallCount,
 } from "@/lib/hubspot-associations";
@@ -44,6 +45,35 @@ function emptyStepResult(description: string): StepResult {
   };
 }
 
+interface Step1_5Result {
+  description: string;
+  deals_checked: number;
+  deals_with_company: number;
+  unique_companies_found: number;
+  already_in_accounts: number;
+  missing_name_and_domain: number;
+  duplicate_domains: number;
+  would_create: number;
+  created: number;
+  errors: string[];
+  new_accounts: Array<{
+    hubspot_company_id: string;
+    company_name: string;
+    domain: string;
+  }>;
+}
+
+function normalizeDomain(raw: string): string {
+  return raw
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/[/?#].*$/, "")    // strip path, query, fragment
+    .replace(/\/+$/, "")
+    .trim();
+}
+
 // ─── Apply Updates ───────────────────────────────────────────────
 
 async function applyUpdates(
@@ -60,7 +90,7 @@ async function applyUpdates(
   const errors: string[] = [];
 
   for (const update of updates) {
-    const { error, count } = await supabase
+    const { data, error } = await supabase
       .from(update.table)
       .update({ [update.field]: update.proposed_value })
       .eq("id", update.id)
@@ -69,7 +99,7 @@ async function applyUpdates(
 
     if (error) {
       errors.push(`${update.table}/${update.id}: ${error.message}`);
-    } else if (!count || count === 0) {
+    } else if (!data || data.length === 0) {
       skipped++; // field was already populated
     } else {
       applied++;
@@ -149,6 +179,186 @@ async function step1_populateAccountCompanyIds(
   result.updated = applied.applied;
   result.skipped = applied.skipped;
   result.errors.push(...applied.errors);
+
+  return result;
+}
+
+// ─── Step 1.5: Expand Account Coverage ───────────────────────────
+
+/**
+ * Create Balboa account rows for HubSpot companies associated with
+ * existing deals that don't already have a matching account.
+ *
+ * INSERT only — no schema changes, no destructive writes.
+ * Deduplicates by domain and skips companies missing both name and domain.
+ */
+async function step1_5_expandAccountCoverage(
+  supabase: SupabaseClient,
+  accessToken: string,
+  userId: string,
+  mode: "dry-run" | "live",
+  opts?: { batchSize?: number; maxApiCalls?: number }
+): Promise<Step1_5Result> {
+  const result: Step1_5Result = {
+    description:
+      "Expand accounts by creating rows for HubSpot companies associated with existing deals",
+    deals_checked: 0,
+    deals_with_company: 0,
+    unique_companies_found: 0,
+    already_in_accounts: 0,
+    missing_name_and_domain: 0,
+    duplicate_domains: 0,
+    would_create: 0,
+    created: 0,
+    errors: [],
+    new_accounts: [],
+  };
+
+  // 1. Get all deals with hubspot_deal_id
+  const dealHsMap = await buildDealHsDealIdMap(supabase, userId);
+  const hsDealIds = [...dealHsMap.keys()];
+  result.deals_checked = hsDealIds.length;
+
+  if (hsDealIds.length === 0) return result;
+
+  // 2. Batch-read deal→company associations from HubSpot
+  const dealCompanyMap = await getDealCompanyAssociations(
+    accessToken,
+    hsDealIds,
+    {
+      batchSize: opts?.batchSize ?? 100,
+      maxApiCalls: opts?.maxApiCalls,
+    }
+  );
+
+  // 3. Collect unique company IDs
+  const allCompanyIds = new Set<string>();
+  for (const [, companyIds] of dealCompanyMap) {
+    if (companyIds.length > 0) {
+      result.deals_with_company++;
+      for (const cid of companyIds) {
+        allCompanyIds.add(cid);
+      }
+    }
+  }
+  result.unique_companies_found = allCompanyIds.size;
+
+  if (allCompanyIds.size === 0) return result;
+
+  // 4. Filter out companies already in accounts table (by hubspot_company_id)
+  const existingHsIds = await buildAccountHsIdMap(supabase, userId);
+  const newCompanyIds: string[] = [];
+  for (const cid of allCompanyIds) {
+    if (existingHsIds.has(cid)) {
+      result.already_in_accounts++;
+    } else {
+      newCompanyIds.push(cid);
+    }
+  }
+
+  if (newCompanyIds.length === 0) return result;
+
+  // 5. Batch-read company properties (name, domain) from HubSpot
+  const companyProps = await getCompanyProperties(accessToken, newCompanyIds, {
+    batchSize: opts?.batchSize ?? 100,
+    maxApiCalls: opts?.maxApiCalls,
+  });
+
+  // 6. Quality check — collect existing account domains for dedup
+  const { data: existingAccounts } = await supabase
+    .from("accounts")
+    .select("website")
+    .eq("user_id", userId)
+    .not("website", "is", null);
+
+  const existingDomains = new Set<string>();
+  if (existingAccounts) {
+    for (const acc of existingAccounts) {
+      const d = normalizeDomain(acc.website || "");
+      if (d) existingDomains.add(d);
+    }
+  }
+
+  // Group new companies by normalized domain to detect duplicates
+  const byDomain = new Map<
+    string,
+    Array<{ hsId: string; name: string; domain: string }>
+  >();
+  const noDomainCompanies: Array<{
+    hsId: string;
+    name: string;
+    domain: string;
+  }> = [];
+
+  for (const hsId of newCompanyIds) {
+    const props = companyProps.get(hsId);
+    if (!props) continue; // API didn't return this company
+
+    const name = props.name.trim();
+    const domain = normalizeDomain(props.domain);
+
+    if (!name && !domain) {
+      result.missing_name_and_domain++;
+      continue;
+    }
+
+    // Skip if domain already exists in accounts (website dedup)
+    if (domain && existingDomains.has(domain)) {
+      result.already_in_accounts++;
+      continue;
+    }
+
+    if (!domain) {
+      // No domain — can still create if has name, but can't dedup by domain
+      noDomainCompanies.push({ hsId, name, domain: "" });
+      continue;
+    }
+
+    const group = byDomain.get(domain) || [];
+    group.push({ hsId, name, domain });
+    byDomain.set(domain, group);
+  }
+
+  // Resolve domain groups — skip ambiguous (multiple HS companies, same domain)
+  const toCreate: Array<{ hsId: string; name: string; domain: string }> = [];
+
+  for (const [, companies] of byDomain) {
+    if (companies.length > 1) {
+      result.duplicate_domains += companies.length;
+      continue;
+    }
+    toCreate.push(companies[0]);
+  }
+
+  // Add no-domain companies (can't conflict by domain)
+  toCreate.push(...noDomainCompanies);
+
+  result.would_create = toCreate.length;
+  result.new_accounts = toCreate.map((c) => ({
+    hubspot_company_id: c.hsId,
+    company_name: c.name || `HubSpot Company ${c.hsId}`,
+    domain: c.domain,
+  }));
+
+  // 7. INSERT new accounts (or just report in dry-run)
+  if (mode === "dry-run") return result;
+
+  for (const company of toCreate) {
+    const { error } = await supabase.from("accounts").insert({
+      user_id: userId,
+      company_name: company.name || `HubSpot Company ${company.hsId}`,
+      website: company.domain || null,
+      hubspot_company_id: company.hsId,
+    });
+
+    if (error) {
+      result.errors.push(
+        `INSERT account for HS company ${company.hsId}: ${error.message}`
+      );
+    } else {
+      result.created++;
+    }
+  }
 
   return result;
 }
@@ -521,7 +731,7 @@ export async function POST(req: NextRequest) {
     secret?: string;
     userId?: string;
     mode?: "dry-run" | "live";
-    step?: "all" | "1" | "2" | "3" | "4" | "5";
+    step?: "all" | "1" | "1.5" | "2" | "3" | "4" | "5";
     batchSize?: number;
     maxHubspotCalls?: number;
     limit?: number;
@@ -594,8 +804,10 @@ export async function POST(req: NextRequest) {
   resetApiCallCount();
   const clampedBatchSize = Math.min(Math.max(batchSize, 10), 100);
 
-  const steps: Record<string, StepResult | Step2Result> = {};
-  const shouldRun = (s: string) => step === "all" || step === s;
+  const steps: Record<string, StepResult | Step2Result | Step1_5Result> = {};
+  // Step 1.5 is explicit-only (not included in "all") — it's a one-time expansion
+  const shouldRun = (s: string) =>
+    s === "1.5" ? step === "1.5" : step === "all" || step === s;
 
   // Contact map — shared between steps 3 and 5
   let contactMap: Map<
@@ -611,6 +823,21 @@ export async function POST(req: NextRequest) {
       accessToken,
       userId,
       mode
+    );
+  }
+
+  // Step 1.5 — explicit-only account expansion
+  if (shouldRun("1.5")) {
+    console.log(`[backfill] Step 1.5: expand account coverage (mode=${mode})`);
+    steps["1.5"] = await step1_5_expandAccountCoverage(
+      supabase,
+      accessToken,
+      userId,
+      mode,
+      {
+        batchSize: clampedBatchSize,
+        maxApiCalls: maxHubspotCalls,
+      }
     );
   }
 
@@ -675,10 +902,11 @@ export async function POST(req: NextRequest) {
   const completedAt = new Date().toISOString();
   const totalApiCalls = getApiCallCount();
 
-  // Count total DB updates
+  // Count total DB writes (updates + inserts)
   let totalUpdates = 0;
   for (const s of Object.values(steps)) {
     if ("updated" in s) totalUpdates += (s as StepResult).updated;
+    if ("created" in s) totalUpdates += (s as Step1_5Result).created;
   }
 
   console.log(

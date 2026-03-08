@@ -75,6 +75,47 @@ export async function trackTouchpoint(
       }
     }
 
+    // 5. Toretto ingest — feed normalized event into revenue intelligence layer
+    // Dynamic import + try/catch = non-blocking. Same pattern as Fire.
+    // Env-gated: only runs when TORETTO_INGEST_ENABLED=true.
+    if (process.env.TORETTO_INGEST_ENABLED === "true") {
+      try {
+        const { getTorettoServiceClient, insertRawEvent } = await import("./toretto/db-toretto");
+        const torettoClient = getTorettoServiceClient();
+        if (torettoClient) {
+          // Fetch lead email so the resolver can extract identifiers
+          let leadEmail: string | null = null;
+          if (input.leadId) {
+            const { data: leadRow } = await supabase
+              .from("leads")
+              .select("email")
+              .eq("id", input.leadId)
+              .single();
+            leadEmail = leadRow?.email || null;
+          }
+
+          await insertRawEvent(torettoClient, {
+            source: input.source as "hubspot" | "gmail" | "aircall" | "linkedin" | "amplemarket" | "clay",
+            event_type: input.eventType,
+            payload: {
+              ...input.metadata,
+              email: leadEmail,
+              leadId: input.leadId,
+              channel: input.channel,
+              direction: input.direction,
+              subject: input.subject,
+              body_preview: input.bodyPreview,
+              sentiment: input.sentiment,
+              occurredAt: new Date().toISOString(),
+            },
+            idempotency_key: `touchpoint:${touchpoint.id}`,
+          });
+        }
+      } catch (torettoErr) {
+        console.error("[track-touchpoint] Toretto ingest error (non-blocking):", torettoErr);
+      }
+    }
+
     return {
       success: true,
       touchpointId: touchpoint.id,

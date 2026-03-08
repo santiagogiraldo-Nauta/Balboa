@@ -426,7 +426,7 @@ export async function findAccountByDomain(
   supabase: SupabaseClient,
   domain: string
 ): Promise<{ id: string; website: string; company_name: string } | null> {
-  // Only 10 accounts — fetch all and match domain in-app
+  // 920 accounts — fetch all with website and match domain in-app
   const { data, error } = await supabase
     .from("accounts")
     .select("id, website, company_name")
@@ -461,6 +461,65 @@ export async function findDealByHubSpotId(
 
   if (error || !data) return null;
   return data;
+}
+
+/**
+ * Get FK references from a lead (for FK propagation in resolver).
+ * Returns the lead's account_id and deal_id if populated.
+ */
+export async function findLeadFKs(
+  supabase: SupabaseClient,
+  leadId: string
+): Promise<{ account_id: string | null; deal_id: string | null } | null> {
+  const { data, error } = await supabase
+    .from("leads")
+    .select("account_id, deal_id")
+    .eq("id", leadId)
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return data;
+}
+
+/**
+ * Get a deal's account_id by deal UUID (for deal→account cascade).
+ */
+export async function findDealAccountId(
+  supabase: SupabaseClient,
+  dealId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("deals")
+    .select("account_id")
+    .eq("id", dealId)
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return data.account_id;
+}
+
+/**
+ * Single-deal-account inference: if an account has exactly 1 deal,
+ * return that deal's ID. Returns null if 0 or 2+ deals exist.
+ * Used to auto-populate deal_id on interactions for single-deal accounts.
+ */
+export async function findSoleDealForAccount(
+  supabase: SupabaseClient,
+  accountId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("deals")
+    .select("id")
+    .eq("account_id", accountId)
+    .limit(2); // only need to know if 0, 1, or 2+
+
+  if (error || !data) return null;
+  // Exactly 1 deal → deterministic link
+  if (data.length === 1) return data[0].id;
+  // 0 or 2+ deals → ambiguous, return null
+  return null;
 }
 
 export async function findLeadByHubSpotContactId(
